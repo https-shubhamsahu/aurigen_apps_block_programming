@@ -6,6 +6,8 @@
 // ============================================================
 import { useEffect, useState } from 'react';
 import { listProjects, loadProject, deleteProject, signOut } from '../lib/supabaseClient';
+import { listLocalProjects, loadLocalProject, deleteLocalProject, isLocalId } from '../lib/localProjects';
+import { useAuth } from '../auth/AuthProvider';
 import { BOARDS, getBoard } from '../boards/boards';
 import { EXAMPLES } from '../lib/examples';
 import ArduinoUnoSVG from '../boards/ArduinoUnoSVG';
@@ -29,24 +31,39 @@ function BoardThumb({ boardId, width = 120 }) {
 }
 
 export default function Home({ onOpen }) {
+  const { user, ready, openAuth } = useAuth();
   const [projects, setProjects] = useState(null); // null = loading
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState('My Project');
   const [error, setError] = useState(null);
 
   async function refresh() {
+    const local = listLocalProjects().map((p) => ({ ...p, _local: true }));
+    if (!user) {
+      setProjects(local);
+      return;
+    }
     try {
-      setProjects(await listProjects());
+      const cloud = await listProjects();
+      setProjects([...cloud, ...local]); // local remnants only exist if a migration retry is pending
     } catch (e) {
       setError(e.message);
-      setProjects([]);
+      setProjects(local);
     }
   }
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    if (!ready) return;
+    refresh();
+    // AuthProvider fires this after guest→account project migration.
+    const h = () => refresh();
+    window.addEventListener('aurigen:projects-changed', h);
+    return () => window.removeEventListener('aurigen:projects-changed', h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, user?.id]);
 
   async function open(id) {
     try {
-      onOpen(await loadProject(id));
+      onOpen(isLocalId(id) ? loadLocalProject(id) : await loadProject(id));
     } catch (e) {
       setError(`Could not open project: ${e.message}`);
     }
@@ -56,7 +73,8 @@ export default function Home({ onOpen }) {
     e.stopPropagation();
     if (!window.confirm(`Delete "${title}"? This cannot be undone.`)) return;
     try {
-      await deleteProject(id);
+      if (isLocalId(id)) deleteLocalProject(id);
+      else await deleteProject(id);
       refresh();
     } catch (err) {
       setError(`Delete failed: ${err.message}`);
@@ -78,7 +96,14 @@ export default function Home({ onOpen }) {
       <header style={S.header}>
         <span style={S.brand}>Aurigen<span style={{ color: '#FFD400' }}>.</span></span>
         <span style={S.tagline}>ESP32 &amp; Arduino, straight from the browser</span>
-        <button style={S.signOut} onClick={() => signOut()}>Sign out</button>
+        {user ? (
+          <>
+            <span style={S.userChip} title={user.email}>{user.email}</span>
+            <button style={S.signOut} onClick={() => signOut()}>Sign out</button>
+          </>
+        ) : (
+          <button style={S.signIn} onClick={() => openAuth('generic')}>Sign in</button>
+        )}
       </header>
 
       {/* hero */}
@@ -87,16 +112,22 @@ export default function Home({ onOpen }) {
           <h1 style={S.heroTitle}>Code real boards.<br />No installs. No drivers*.</h1>
           <p style={S.heroSub}>
             Drag blocks, watch the C++, simulate on a photoreal board, then flash over USB.
+            {!user && <strong> No sign-up needed — just start building.</strong>}
           </p>
-          <button
-            style={S.heroBtn}
-            onClick={() => {
-              const ex = EXAMPLES[0];
-              onOpen({ id: null, title: ex.title, board_target: ex.board, workspace_xml: ex.xml });
-            }}
-          >
-            ▶ Start with Blink
-          </button>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <button
+              style={S.heroBtn}
+              onClick={() => {
+                const ex = EXAMPLES[0];
+                onOpen({ id: null, title: ex.title, board_target: ex.board, workspace_xml: ex.xml });
+              }}
+            >
+              ▶ Start with Blink
+            </button>
+            <button style={S.heroBtnGhost} onClick={() => setShowNew(true)}>
+              ＋ New project
+            </button>
+          </div>
           <div style={S.heroFootnote}>*ok, sometimes one CH340 driver.</div>
         </div>
         <div style={S.heroBoards}>
@@ -109,7 +140,14 @@ export default function Home({ onOpen }) {
         {error && <div style={S.error}>{error}</div>}
 
         <section>
-          <h2 style={S.h2}>My Projects</h2>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+            <h2 style={S.h2}>My Projects</h2>
+            {!user && projects?.length > 0 && (
+              <button style={S.syncHint} onClick={() => openAuth('cloud')}>
+                stored on this device — sign in to sync ↗
+              </button>
+            )}
+          </div>
           <div style={S.grid}>
             <div style={S.newCard} onClick={() => setShowNew(true)}>
               <div style={S.plus}>＋</div>
@@ -123,7 +161,10 @@ export default function Home({ onOpen }) {
                   <button style={S.delBtn} title="Delete" onClick={(e) => remove(e, p.id, p.title)}>✕</button>
                 </div>
                 <span style={S.boardTag}>{getBoard(p.board_target).name}</span>
-                <span style={S.cardTime}>{timeAgo(p.updated_at)}</span>
+                <div style={{ display: 'flex', gap: 6, marginTop: 'auto', alignItems: 'center' }}>
+                  {p._local && <span style={S.localTag} title="Saved in this browser only">this device</span>}
+                  <span style={S.cardTime}>{timeAgo(p.updated_at)}</span>
+                </div>
               </div>
             ))}
           </div>
@@ -183,6 +224,14 @@ const S = {
   brand: { fontWeight: 800, fontSize: 19 },
   tagline: { fontSize: 12, color: '#AAA', flex: 1 },
   signOut: { border: '1px solid #444', background: 'transparent', color: '#BBB', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer' },
+  signIn: { border: 'none', background: '#FFD400', color: '#1A1A1A', fontWeight: 700, borderRadius: 8, padding: '7px 16px', fontSize: 12.5, cursor: 'pointer' },
+  userChip: { fontSize: 11.5, color: '#888', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  syncHint: { border: 'none', background: 'transparent', color: '#8A6D00', fontSize: 12, cursor: 'pointer', padding: 0 },
+  localTag: { fontSize: 9.5, background: '#EEE', color: '#777', borderRadius: 999, padding: '2px 7px', fontWeight: 600 },
+  heroBtnGhost: {
+    border: '2px solid #1A1A1A', background: 'transparent', color: '#1A1A1A', fontWeight: 800,
+    fontSize: 15, borderRadius: 12, padding: '11px 20px', cursor: 'pointer',
+  },
   hero: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20,
     padding: '34px 40px', background: 'linear-gradient(105deg, #FFD400 55%, #FFE45C)',

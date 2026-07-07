@@ -6,8 +6,8 @@
 // Board-aware: the toolbox, pin menus, codegen and the Download
 // behavior all come from the project's board target.
 //   * ESP32 → compile then flash over Web Serial (esptool-js)
-//   * Uno   → compile then save the .hex (browser AVR flashing
-//             is future work — STK500 protocol, not esptool)
+//   * Uno   → compile then flash over Web Serial (STK500v1 to
+//             optiboot — see hooks/useAvrFlash), .hex fallback
 // ============================================================
 import { useEffect, useRef, useState, useCallback } from 'react';
 import * as Blockly from 'blockly';
@@ -15,15 +15,19 @@ import '@blockly/toolbox-search'; // registers the 'search' toolbox category
 import { cppGenerator } from '../blockly/cppGenerator';
 import { buildToolbox, setActiveBoard } from '../blockly/esp32Blocks';
 import { getAccessToken, saveProject, signOut } from '../lib/supabaseClient';
+import { saveLocalProject, deleteLocalProject, isLocalId } from '../lib/localProjects';
+import { useAuth } from '../auth/AuthProvider';
 import { getBoard } from '../boards/boards';
 import { encodeShare } from '../lib/share';
 import { useWebSerial } from '../hooks/useWebSerial';
+import { useAvrFlash } from '../hooks/useAvrFlash';
 import Simulator from './Simulator';
 
 const API = import.meta.env.VITE_COMPILE_API ?? 'http://localhost:4000';
 const POLL_MS = 1500;
 
 export default function BlocklyWorkspace({ project, onHome }) {
+  const { user, requireAuth, openAuth } = useAuth();
   const board = getBoard(project.board_target);
   const hostRef = useRef(null);
   const wsRef = useRef(null);
@@ -42,7 +46,11 @@ export default function BlocklyWorkspace({ project, onHome }) {
   const [showShare, setShowShare] = useState(false);
   const [copied, setCopied] = useState(false);
   const [job, setJob] = useState({ phase: 'idle' }); // idle|queued|compiling|ready|error
+  // Uno: the compiled .hex, kept in memory for the avr8js firmware
+  // engine and the STK500 Web Serial flasher.
+  const [firmware, setFirmware] = useState(null);
   const { flash, flashState, progress, supported } = useWebSerial();
+  const { flashHex, avrFlashState, avrProgress, avrSupported } = useAvrFlash();
 
   // ---- Mount Blockly exactly once (component is keyed per project) ----
   useEffect(() => {
@@ -122,7 +130,11 @@ export default function BlocklyWorkspace({ project, onHome }) {
   }, [dirty, xml, title, projectId]);
 
   // ---- Compile: POST → 202 + jobId → poll /status ----------------
+  // Guests can build and simulate freely; the cloud compiler is the one
+  // feature that needs an account (it burns real server CPU). The modal
+  // resumes the compile automatically after sign-in.
   const compile = useCallback(async () => {
+    if (!requireAuth('compile', () => compileRef.current())) return;
     setJob({ phase: 'queued' });
     try {
       const token = await getAccessToken();
@@ -142,7 +154,9 @@ export default function BlocklyWorkspace({ project, onHome }) {
     } catch (e) {
       setJob({ phase: 'error', message: e.message });
     }
-  }, [cpp, board.short]);
+  }, [cpp, board.short, requireAuth]);
+  const compileRef = useRef(compile);
+  compileRef.current = compile;
 
   function pollStatus(jobId, token) {
     clearInterval(pollRef.current);
@@ -156,6 +170,13 @@ export default function BlocklyWorkspace({ project, onHome }) {
         if (body.state === 'completed') {
           clearInterval(pollRef.current);
           setJob({ phase: 'ready', artifacts: body.artifacts });
+          if (board.short === 'uno') {
+            // Cache the hex for the firmware simulator + USB flasher.
+            fetch(`${API}${body.artifacts[0].url}`)
+              .then((r) => r.text())
+              .then((hex) => setFirmware({ hex, at: Date.now() }))
+              .catch(() => {});
+          }
         } else if (body.state === 'failed') {
           clearInterval(pollRef.current);
           // compilerOutput carries the arduino-cli stderr for the student.
@@ -170,16 +191,35 @@ export default function BlocklyWorkspace({ project, onHome }) {
     }, POLL_MS);
   }
 
-  // ---- Deliver: esptool flash (ESP32) or .hex download (Uno) ------
+  // ---- Deliver: real USB programming for BOTH boards ---------------
+  //  * ESP32 → esptool-js (four flash images)
+  //  * Uno   → STK500v1 straight to optiboot (with .hex download as
+  //            the fallback for browsers without Web Serial)
+  async function getUnoHex() {
+    if (firmware?.hex) return firmware.hex;
+    const text = await (await fetch(`${API}${job.artifacts[0].url}`)).text();
+    setFirmware({ hex: text, at: Date.now() });
+    return text;
+  }
+
+  async function downloadHexFile() {
+    const hex = await getUnoHex();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([hex], { type: 'text/plain' }));
+    a.download = `${(title || 'sketch').replace(/[^\w-]+/g, '_')}.hex`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   async function deliver() {
     if (board.flashMethod === 'hex') {
-      const { url } = job.artifacts[0];
-      const blob = await (await fetch(`${API}${url}`)).blob();
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `${(title || 'sketch').replace(/[^\w-]+/g, '_')}.hex`;
-      a.click();
-      URL.revokeObjectURL(a.href);
+      if (!avrSupported) return downloadHexFile();
+      try {
+        await flashHex(await getUnoHex());
+      } catch (e) {
+        // Keep the artifacts so “save .hex instead” still works.
+        setJob({ phase: 'error', message: `${e.message}`, artifacts: job.artifacts });
+      }
       return;
     }
     const files = await Promise.all(
@@ -195,9 +235,18 @@ export default function BlocklyWorkspace({ project, onHome }) {
     if (saveState === 'saving') return;
     setSaveState('saving');
     try {
-      const row = await saveProject({
-        id: projectId, title, workspaceXml: xml, generatedCpp: cpp, boardTarget: board.id,
-      });
+      const payload = { id: projectId, title, workspaceXml: xml, generatedCpp: cpp, boardTarget: board.id };
+      let row;
+      if (!user) {
+        // Guests save to this browser — zero friction, upgraded on sign-in.
+        row = saveLocalProject(payload);
+      } else if (isLocalId(projectId)) {
+        // Signed in while holding a guest project: promote it to the cloud.
+        row = await saveProject({ ...payload, id: null });
+        deleteLocalProject(projectId);
+      } else {
+        row = await saveProject(payload);
+      }
       setProjectId(row.id); // first save inserts; keep updating the same row after
       setDirty(false);
       setSaveState('saved');
@@ -216,13 +265,19 @@ export default function BlocklyWorkspace({ project, onHome }) {
   }
 
   const compiling = job.phase === 'queued' || job.phase === 'compiling';
-  const flashing = flashState === 'flashing' || flashState === 'connecting';
+  const flashing = flashState === 'flashing' || flashState === 'connecting'
+    || avrFlashState === 'flashing' || avrFlashState === 'connecting';
+  const flashPct = board.flashMethod === 'hex' ? avrProgress : progress;
 
   // One MakeCode-style button that walks the compile → deliver pipeline.
   const download = {
     label: compiling ? 'Compiling…'
-      : flashing ? `Uploading ${progress}%`
-      : job.phase === 'ready' ? (board.flashMethod === 'hex' ? '⬇ Save .hex file' : '⚡ Upload to board')
+      : flashing ? `Uploading ${flashPct}%`
+      : avrFlashState === 'done' ? '✓ Uploaded!'
+      : job.phase === 'ready'
+        ? (board.flashMethod === 'hex'
+            ? (avrSupported ? '⚡ Upload via USB' : '⬇ Save .hex file')
+            : '⚡ Upload to board')
       : '⬇ Download',
     disabled: compiling || flashing || !cpp,
     onClick: job.phase === 'ready' ? deliver : compile,
@@ -249,7 +304,11 @@ export default function BlocklyWorkspace({ project, onHome }) {
         </div>
 
         <button style={S.ghostBtn} onClick={() => { setShowShare(true); setCopied(false); }}>Share</button>
-        <button style={S.ghostBtn} onClick={() => signOut()}>Sign out</button>
+        {user ? (
+          <button style={S.ghostBtn} onClick={() => signOut()}>Sign out</button>
+        ) : (
+          <button style={S.signInBtn} onClick={() => openAuth('generic')}>Sign in</button>
+        )}
       </header>
 
       {!supported && board.flashMethod === 'esptool' && (
@@ -262,7 +321,7 @@ export default function BlocklyWorkspace({ project, onHome }) {
       <div style={S.main}>
         {/* ---- left: simulator + download dock (collapsible) ---- */}
         <aside style={{ ...S.side, ...(simOpen ? {} : S.sideClosed) }}>
-          <Simulator wsRef={wsRef} rev={rev} board={board} />
+          <Simulator wsRef={wsRef} rev={rev} board={board} firmware={firmware} />
 
           <div style={S.dock}>
             <button
@@ -285,8 +344,11 @@ export default function BlocklyWorkspace({ project, onHome }) {
             </div>
             {flashing && (
               <div style={S.progressTrack}>
-                <div style={{ ...S.progressFill, width: `${progress}%` }} />
+                <div style={{ ...S.progressFill, width: `${flashPct}%` }} />
               </div>
+            )}
+            {board.flashMethod === 'hex' && job.phase === 'ready' && avrSupported && !flashing && (
+              <button style={S.hexLink} onClick={downloadHexFile}>…or save the .hex file instead</button>
             )}
           </div>
         </aside>
@@ -374,6 +436,10 @@ const S = {
     border: '1px solid #444', background: 'transparent', color: '#BBB', borderRadius: 8,
     padding: '6px 12px', fontSize: 12, cursor: 'pointer',
   },
+  signInBtn: {
+    border: 'none', background: '#FFD400', color: '#1A1A1A', fontWeight: 700, borderRadius: 8,
+    padding: '7px 16px', fontSize: 12.5, cursor: 'pointer',
+  },
   banner: { padding: '8px 16px', background: '#FFF9DB', fontSize: 13, borderBottom: '1px solid #FFF3B0' },
   main: { flex: 1, display: 'flex', minHeight: 0 },
   side: {
@@ -398,6 +464,7 @@ const S = {
     outlineColor: '#FFD400', background: '#FFF',
   },
   saveBtn: { width: 42, border: '2px solid #DDD', borderRadius: 10, background: '#FFF', cursor: 'pointer', fontSize: 14 },
+  hexLink: { border: 'none', background: 'transparent', color: '#8A6D00', fontSize: 11.5, cursor: 'pointer', padding: 0 },
   progressTrack: { height: 6, background: '#DDD', borderRadius: 3, overflow: 'hidden' },
   progressFill: { height: '100%', background: '#FFD400', transition: 'width 200ms' },
   stage: { flex: 1, position: 'relative', minWidth: 0 },

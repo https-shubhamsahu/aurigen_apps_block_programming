@@ -1,8 +1,9 @@
-// Entry point: auth-gate the app, then route home ⇄ editor.
-// A #s= share link in the URL opens straight into the editor
-// with the shared program as an unsaved project.
+// Entry point — product-first: everyone lands in the app, signed in or
+// not. Auth lives in a context + on-demand modal (see auth/AuthProvider).
+// A #s= share link in the URL opens straight into the editor with the
+// shared program as an unsaved project.
 import { useEffect, useState } from 'react';
-import AuthGate from './auth/AuthGate';
+import AuthProvider from './auth/AuthProvider';
 import Home from './components/Home';
 import BlocklyWorkspace from './components/BlocklyWorkspace';
 import { decodeShare } from './lib/share';
@@ -29,7 +30,7 @@ export default function App() {
   }, []);
 
   return (
-    <AuthGate>
+    <AuthProvider>
       {route.view === 'home' ? (
         <Home onOpen={(project) => setRoute({ view: 'editor', project })} />
       ) : (
@@ -40,6 +41,6 @@ export default function App() {
           onHome={() => setRoute({ view: 'home' })}
         />
       )}
-    </AuthGate>
+    </AuthProvider>
   );
 }

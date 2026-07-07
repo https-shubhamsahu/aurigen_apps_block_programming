@@ -12,12 +12,13 @@
 // ============================================================
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { SimRunner, analyzeUsage } from '../simulator/interpreter';
+import { AvrRunner } from '../simulator/engines/avrEngine';
 import ArduinoUnoSVG from '../boards/ArduinoUnoSVG';
 import Esp32DevkitSVG from '../boards/Esp32DevkitSVG';
 
 const PLOT_POINTS = 240;
 
-export default function Simulator({ wsRef, rev, board }) {
+export default function Simulator({ wsRef, rev, board, firmware }) {
   const runnerRef = useRef(null);
   const serialEndRef = useRef(null);
   const boardWrapRef = useRef(null);
@@ -26,6 +27,9 @@ export default function Simulator({ wsRef, rev, board }) {
   const [slowMo, setSlowMo] = useState(false);
   const [txFlash, setTxFlash] = useState(false);
   const [fs, setFs] = useState(false);            // fullscreen board view
+  // 'blocks'  = instant block interpreter (all boards)
+  // 'firmware'= avr8js running the real compiled .hex (Uno, after a build)
+  const [engine, setEngine] = useState('blocks');
   const [serialTab, setSerialTab] = useState('monitor'); // 'monitor' | 'plot'
   const [plotHover, setPlotHover] = useState(null);      // hovered sample index
   // UI copies of the inputs so pads/sliders render before Run is pressed.
@@ -75,12 +79,23 @@ export default function Simulator({ wsRef, rev, board }) {
 
   function run() {
     runnerRef.current?.stop();
-    const runner = new SimRunner(wsRef.current, board, setSim);
+    let runner;
+    if (engine === 'firmware' && firmware?.hex) {
+      try {
+        runner = new AvrRunner(firmware.hex, board, setSim);
+      } catch (e) {
+        setSim((s) => ({ ...s, serial: [...s.serial, `⚠ firmware load failed: ${e.message}`] }));
+        return;
+      }
+    } else {
+      runner = new SimRunner(wsRef.current, board, setSim);
+    }
     runner.speed = slowMo ? 4 : 1;
     // Carry over whatever the user already set on the widgets.
     for (const [pin, pressed] of Object.entries(buttons)) runner.setDigitalInput(pin, pressed ? 0 : 1);
     for (const [pin, v] of Object.entries(sliders)) runner.setAnalogInput(pin, v);
     runnerRef.current = runner;
+    if (import.meta.env.DEV) window.__aurigenRunner = runner; // e2e/debug hook
     runner.start();
   }
 
@@ -203,6 +218,37 @@ export default function Simulator({ wsRef, rev, board }) {
               <span style={S.inputLabel}>{board.pinLabel(pin)}</span>
               <span style={S.inputValue}>{sliders[pin] ?? 0}</span>
             </div>
+          ))}
+        </div>
+      )}
+
+      {/* engine picker — the headline feature for the Uno: run the REAL
+          compiled firmware on a simulated ATmega328P (avr8js) */}
+      {board.short === 'uno' && (
+        <div style={S.engineRow}>
+          {[
+            ['blocks', '⚡ Blocks', 'Instant: interprets your blocks live while you edit'],
+            ['firmware', '🔬 Firmware', firmware
+              ? 'Runs the real compiled .hex on a simulated ATmega328P — cycle-accurate PWM, timers, serial'
+              : 'Compile once (Download button) to unlock — then your real firmware runs right here'],
+          ].map(([key, label, tip]) => (
+            <button
+              key={key}
+              title={tip}
+              disabled={key === 'firmware' && !firmware}
+              style={{
+                ...S.engineBtn,
+                ...(engine === key ? S.engineBtnOn : {}),
+                ...(key === 'firmware' && !firmware ? { opacity: 0.45, cursor: 'default' } : {}),
+              }}
+              onClick={() => {
+                if (key === 'firmware' && !firmware) return;
+                setEngine(key);
+                if (runnerRef.current?.running) { runnerRef.current.stop(); }
+              }}
+            >
+              {label}
+            </button>
           ))}
         </div>
       )}
@@ -331,6 +377,12 @@ const S = {
     transition: 'transform 80ms, background 80ms',
   },
   pushBtnDown: { background: '#00E5FF', color: '#003A42', borderColor: '#00B8CC', transform: 'scale(0.88)' },
+  engineRow: { display: 'flex', gap: 4, background: '#E0E0E0', borderRadius: 10, padding: 3 },
+  engineBtn: {
+    flex: 1, border: 'none', background: 'transparent', color: '#555', fontWeight: 700,
+    fontSize: 12, padding: '7px 0', borderRadius: 8, cursor: 'pointer',
+  },
+  engineBtnOn: { background: '#FFF', color: '#1A1A1A', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
   transport: { display: 'flex', gap: 6 },
   playBtn: {
     flex: 1, border: 'none', borderRadius: 10, padding: '10px 0', color: '#FFF',

@@ -143,16 +143,48 @@ artifacts** (`bootloader @ 0x1000`, `partitions @ 0x8000`, `boot_app0 @ 0xE000`,
 `app @ 0x10000`) and the frontend flashes them together. This makes first-day
 classroom experience deterministic at the cost of ~3 s extra flash time.
 
-## 3. Repo layout
+## 3. Architecture
+
+**Product-first onboarding.** Nothing is auth-gated at the door: guests land in
+the full IDE, build, simulate, and save to `localStorage` (`lib/localProjects.js`).
+`auth/AuthProvider.jsx` exposes `requireAuth(reason, resume)` — the only feature
+that raises the sign-in modal is the cloud compiler, and the pending action
+resumes automatically after sign-in. Guest projects migrate into the account on
+first sign-in.
+
+**Two simulation engines, one contract.** `components/Simulator.jsx` drives
+whichever engine is selected; both emit the same
+`{ pins: {name: 0–255}, serial, running, txCount }` shape:
+
+| engine | file | what it is |
+|---|---|---|
+| ⚡ Blocks | `simulator/interpreter.js` | Instant block interpreter — live feedback while editing, all boards |
+| 🔬 Firmware | `simulator/engines/avrEngine.js` | [avr8js](https://github.com/wokwi/avr8js) (MIT, the core Wokwi builds on) executing the **real compiled .hex** on a simulated ATmega328P — timers, USART serial, ADC, and *measured* PWM duty (cycle-integrated, not guessed) |
+
+Adding a board = a `boards/boards.js` entry + an SVG render; adding an engine =
+one class honoring the contract above.
+
+**Real USB programming for both boards, no installs.**
+`hooks/useWebSerial.js` (esptool-js, ESP32) and `hooks/useAvrFlash.js`
+(hand-rolled STK500v1 straight to the Uno's optiboot bootloader — DTR
+auto-reset, signature check, 128-byte page writes). Browsers without Web
+Serial fall back to a `.hex` download.
+
+## 4. Repo layout
 
 ```
-frontend/src/lib/supabaseClient.js     Supabase client + auth helpers
-frontend/src/auth/AuthGate.jsx         Login / register (yellow-white theme)
+frontend/src/auth/AuthProvider.jsx     Session context + requireAuth + guest→cloud migration
+frontend/src/auth/AuthModal.jsx        On-demand sign-in (never a wall)
+frontend/src/lib/localProjects.js      Guest persistence (localStorage, cloud-shaped rows)
+frontend/src/lib/supabaseClient.js     Supabase client + auth/project helpers
 frontend/src/blockly/cppGenerator.js   Custom Blockly → C++ generator core
-frontend/src/blockly/esp32Blocks.js    ESP32-safe block defs + generators
-frontend/src/components/BlocklyWorkspace.jsx
-frontend/src/hooks/useWebSerial.js     esptool-js flash hook
-backend/server.js                      Express API + BullMQ producer
+frontend/src/blockly/esp32Blocks.js    Board-aware block defs + generators
+frontend/src/simulator/interpreter.js  Blocks engine (instant)
+frontend/src/simulator/engines/avrEngine.js  Firmware engine (avr8js)
+frontend/src/simulator/hex.js          Intel HEX parser (engine + flasher)
+frontend/src/hooks/useWebSerial.js     ESP32 flashing (esptool-js)
+frontend/src/hooks/useAvrFlash.js      Uno flashing (STK500v1 over Web Serial)
+backend/server.js                      Express API + BullMQ producer + rate limits
 backend/worker.js                      BullMQ consumer → arduino-cli
 supabase/migrations/001_init.sql       Tables + RLS
 ```
