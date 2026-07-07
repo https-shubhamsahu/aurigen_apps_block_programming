@@ -1,0 +1,44 @@
+# Zero-VPS option: run the whole compile backend on your own machine.
+# Usage:
+#   cp backend/.env.example backend/.env   # fill in Supabase values
+#   docker compose up -d --build
+#   docker compose logs -f                 # watch both processes
+# Pair with a Cloudflare Tunnel (see README "Free hosting" section) to
+# expose api:4000 to the internet with a real HTTPS URL, no port-forwarding,
+# no card, no signup fee.
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+
+  api:
+    build: ./backend
+    command: node server.js
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "4000:4000"
+    depends_on:
+      - redis
+    volumes:
+      - artifacts:/data/artifacts
+
+  worker:
+    build: ./backend
+    command: node worker.js
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
+    volumes:
+      - artifacts:/data/artifacts
+
+volumes:
+  redis-data:
+  artifacts:

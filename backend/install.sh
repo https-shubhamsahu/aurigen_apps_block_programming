@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# ============================================================
+# Aurigen compile-service provisioning script — fresh Ubuntu 22.04/24.04 box.
+# Idempotent: safe to re-run after a git pull to pick up dependency changes.
+#
+# Usage:
+#   git clone <your-repo-url> aurigen && cd aurigen/backend
+#   chmod +x install.sh && ./install.sh
+# ============================================================
+set -euo pipefail
+
+echo "== Aurigen backend setup =="
+
+# ---- 1. System packages ----------------------------------------------
+sudo apt-get update -y
+sudo apt-get install -y redis-server curl git build-essential
+
+sudo systemctl enable --now redis-server
+
+if ! command -v node >/dev/null; then
+  echo "-- Installing Node.js 20.x --"
+  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+  sudo apt-get install -y nodejs
+fi
+
+if ! command -v pm2 >/dev/null; then
+  sudo npm install -g pm2
+fi
+
+# ---- 2. arduino-cli + board cores --------------------------------------
+if ! command -v arduino-cli >/dev/null; then
+  echo "-- Installing arduino-cli --"
+  curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
+    | sudo BINDIR=/usr/local/bin sh
+fi
+
+arduino-cli config init --overwrite
+arduino-cli config add board_manager.additional_urls \
+  https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+arduino-cli core update-index
+arduino-cli core install esp32:esp32   # ESP32 DevKit V1
+arduino-cli core install arduino:avr   # Arduino Uno R3
+
+# ---- 3. App dependencies -----------------------------------------------
+cd "$(dirname "$0")"
+npm install --omit=dev
+
+if [ ! -f .env ]; then
+  cp .env.example .env
+  echo ""
+  echo "!! Created backend/.env from the template — edit it now and set:"
+  echo "   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, CORS_ORIGIN"
+  echo "   (find the service role key in Supabase → Project Settings → API Keys)"
+fi
+
+mkdir -p artifacts jobs
+
+# ---- 4. Start under pm2, survive reboots -------------------------------
+pm2 start ecosystem.config.js
+pm2 save
+sudo env PATH=$PATH:/usr/bin pm2 startup systemd -u "$USER" --hp "$HOME" | tail -1 | bash || true
+
+echo ""
+echo "== Done =="
+echo "Edit backend/.env if you haven't, then: pm2 restart all"
+echo "Check status:  pm2 status | pm2 logs aurigen-api | pm2 logs aurigen-worker"
+echo "Next: put Caddy in front (see ../Caddyfile) for HTTPS on your domain."

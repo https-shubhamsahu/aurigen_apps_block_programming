@@ -1,0 +1,29 @@
+# systemd unit for a persistent Cloudflare Tunnel — the no-domain alternative
+# to Caddy (see Caddyfile). Gives the backend a real https:// URL without
+# owning a domain, without opening port 80/443, without any cost.
+#
+# Setup on the VPS:
+#   curl -fsSL https://pkg.cloudflare.com/cloudflared-linux-arm64 -o cloudflared   # ARM (Oracle A1)
+#   # or -linux-amd64 on an x86 box
+#   chmod +x cloudflared && sudo mv cloudflared /usr/local/bin/
+#   sudo cp cloudflared.service.example /etc/systemd/system/cloudflared.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now cloudflared
+#   sudo journalctl -u cloudflared -f   # the https://<random>.trycloudflare.com URL is printed here
+#
+# The URL is stable for as long as this service keeps running — it only
+# changes if the process restarts. For a URL that never changes even across
+# restarts, upgrade later to a "named tunnel" (needs *a* domain in a free
+# Cloudflare account — e.g. a free js.org subdomain for open-source JS
+# projects, or a GitHub Student Pack Namecheap domain, both $0).
+[Unit]
+Description=Cloudflare Tunnel for Aurigen compile API
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/cloudflared tunnel --url http://localhost:4000
+Restart=on-failure
+RestartSec=5
+User=ubuntu
+
+[Install]
+WantedBy=multi-user.target

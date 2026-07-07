@@ -1,0 +1,21 @@
+# Reverse proxy for the Aurigen compile API — automatic HTTPS via Let's Encrypt.
+# Install: sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
+#          curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+#          curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+#          sudo apt update && sudo apt install caddy
+# Deploy:  sudo cp Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
+#
+# Replace api.yourdomain.com with your real subdomain before deploying.
+# No domain yet? Run instead: caddy reverse-proxy --from api.yourdomain.com --to localhost:4000
+# (temporary, foreground only — this file is the persistent version).
+
+api.yourdomain.com {
+	reverse_proxy localhost:4000
+
+	encode gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+	}
+}
