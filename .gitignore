@@ -6,6 +6,8 @@ dist/
 .env
 .env.*
 !.env.example
+# intentionally public build-time config (anon key is RLS-protected by design)
+!frontend/.env.production
 
 # compile-service scratch dirs (local dev)
 backend/artifacts/
