@@ -5,11 +5,12 @@
 // the backend's "type": "module" package.json would otherwise break.
 module.exports = {
   apps: [
+    // .env is loaded by the apps themselves (process.loadEnvFile in
+    // server.js/worker.js) — pm2 has no env_file option.
     {
       name: 'aurigen-api',
       script: 'server.js',
       cwd: __dirname,
-      env_file: '.env',
       max_memory_restart: '300M',
       restart_delay: 2000,
     },
@@ -17,7 +18,6 @@ module.exports = {
       name: 'aurigen-worker',
       script: 'worker.js',
       cwd: __dirname,
-      env_file: '.env',
       // arduino-cli compiles are memory-hungry; give the worker more
       // headroom than the API before pm2 restarts it.
       max_memory_restart: '700M',
