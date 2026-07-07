@@ -78,7 +78,7 @@ fi
 mkdir -p artifacts jobs
 
 # ---- 4. Start under pm2, survive reboots -------------------------------
-pm2 start ecosystem.config.js
+pm2 start ecosystem.config.cjs
 pm2 save
 sudo env PATH=$PATH:/usr/bin pm2 startup systemd -u "$USER" --hp "$HOME" | tail -1 | bash || true
 

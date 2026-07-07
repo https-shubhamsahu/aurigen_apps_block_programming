@@ -19,3 +19,5 @@ aurigen-mvp.zip
 # editor/OS noise
 .DS_Store
 Thumbs.db
+
+.vercel
