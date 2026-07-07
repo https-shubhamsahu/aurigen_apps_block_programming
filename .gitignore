@@ -1,0 +1,19 @@
+# dependencies / build output
+node_modules/
+dist/
+
+# secrets — .env.example documents the shape, real values never enter git
+.env
+.env.*
+!.env.example
+
+# compile-service scratch dirs (local dev)
+backend/artifacts/
+backend/jobs/
+
+# local snapshots
+aurigen-mvp.zip
+
+# editor/OS noise
+.DS_Store
+Thumbs.db
