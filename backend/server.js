@@ -44,7 +44,9 @@ export const compileQueue = new Queue('compile', {
 });
 
 const app = express();
-app.use(cors({ origin: CORS_ORIGIN }));
+// CORS_ORIGIN accepts a comma-separated list, e.g.
+//   CORS_ORIGIN=https://aurigen-apps.vercel.app,http://localhost:5173
+app.use(cors({ origin: CORS_ORIGIN === '*' ? '*' : CORS_ORIGIN.split(',').map((s) => s.trim()) }));
 app.use(express.json({ limit: '512kb' }));
 
 // ---- Auth middleware: Bearer <supabase-jwt> ----------------------
