@@ -25,7 +25,14 @@ export const supabase = createClient(url, anonKey, {
 // ---------- Auth helpers ----------
 
 export async function signUp(email, password) {
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  // Without this, the confirmation email links back to whatever the
+  // project's Auth "Site URL" happens to be set to (often a stale
+  // localhost default) instead of wherever the app is actually running.
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo: window.location.origin },
+  });
   if (error) throw normalizeAuthError(error);
   return data;
 }
