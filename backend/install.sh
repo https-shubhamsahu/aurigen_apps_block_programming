@@ -11,6 +11,22 @@ set -euo pipefail
 
 echo "== Aurigen backend setup =="
 
+# ---- 0. Swap file ------------------------------------------------------
+# arduino-cli's ESP32 compile can spike memory well past what the free-tier
+# micro shapes (1 GB RAM) offer. A swap file costs nothing and turns an OOM
+# kill into a slow-but-successful compile instead. Harmless on bigger boxes.
+if [ ! -f /swapfile ] && [ "$(free -m | awk '/^Mem:/{print $2}')" -lt 4000 ]; then
+  echo "-- Low-memory host detected — adding a 4G swap file --"
+  sudo fallocate -l 4G /swapfile
+  sudo chmod 600 /swapfile
+  sudo mkswap /swapfile
+  sudo swapon /swapfile
+  echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab >/dev/null
+  # Prefer keeping the process working set in RAM; only swap under real pressure.
+  echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/60-aurigen-swap.conf >/dev/null
+  sudo sysctl -p /etc/sysctl.d/60-aurigen-swap.conf
+fi
+
 # ---- 1. System packages ----------------------------------------------
 sudo apt-get update -y
 sudo apt-get install -y redis-server curl git build-essential
@@ -47,6 +63,12 @@ npm install --omit=dev
 
 if [ ! -f .env ]; then
   cp .env.example .env
+  # A 1 GB micro instance can't safely run two arduino-cli compiles at once —
+  # drop concurrency to 1 there so the swap file above stays a rare fallback,
+  # not the normal path.
+  if [ "$(free -m | awk '/^Mem:/{print $2}')" -lt 2000 ]; then
+    sed -i 's/^CONCURRENCY=.*/CONCURRENCY=1/' .env
+  fi
   echo ""
   echo "!! Created backend/.env from the template — edit it now and set:"
   echo "   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, CORS_ORIGIN"
