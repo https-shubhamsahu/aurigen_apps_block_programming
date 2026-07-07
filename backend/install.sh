@@ -33,9 +33,10 @@ sudo apt-get install -y redis-server curl git build-essential
 
 sudo systemctl enable --now redis-server
 
-if ! command -v node >/dev/null; then
-  echo "-- Installing Node.js 20.x --"
-  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+# supabase-js's realtime client needs Node 22+ (native WebSocket).
+if ! command -v node >/dev/null || [ "$(node -v | cut -c2-3)" -lt 22 ]; then
+  echo "-- Installing Node.js 22.x --"
+  curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
   sudo apt-get install -y nodejs
 fi
 

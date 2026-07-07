@@ -6,9 +6,10 @@
 // Concurrency is capped so 30 students clicking "Compile" at
 // once queue politely instead of OOM-ing a $5 VPS.
 // ============================================================
-// Load ./.env if present (pm2 / bare `node worker.js`). Under Docker the
-// values arrive via compose env_file and no .env file exists — that's fine.
-try { process.loadEnvFile(); } catch { /* no .env file */ }
+// Load the .env sitting NEXT TO THIS FILE if present (pm2 / bare node) —
+// resolved from the module path, not cwd, so process managers can't break it.
+// Under Docker the values arrive via compose env_file and no .env exists.
+try { process.loadEnvFile(new URL('.env', import.meta.url).pathname); } catch { /* no .env file */ }
 
 import { Worker } from 'bullmq';
 import IORedis from 'ioredis';
