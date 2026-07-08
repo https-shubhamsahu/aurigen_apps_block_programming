@@ -22,6 +22,10 @@ import { encodeShare } from '../lib/share';
 import { useWebSerial } from '../hooks/useWebSerial';
 import { useAvrFlash } from '../hooks/useAvrFlash';
 import Simulator from './Simulator';
+import ModalShell from '../design/ModalShell';
+import Spinner from '../design/Spinner';
+import ThemeToggle from '../design/ThemeToggle';
+import { color, space, radius, font, shadow, motion } from '../design/tokens';
 
 const API = import.meta.env.VITE_COMPILE_API ?? 'http://localhost:4000';
 const POLL_MS = 1500;
@@ -131,7 +135,7 @@ export default function BlocklyWorkspace({ project, onHome }) {
     if (!dirty || !projectId) return;
     const t = setTimeout(() => saveRef.current(), 2500);
     return () => clearTimeout(t);
-     
+
   }, [dirty, xml, title, projectId]);
 
   // ---- Compile: POST → 202 + jobId → poll /status ----------------
@@ -302,20 +306,21 @@ export default function BlocklyWorkspace({ project, onHome }) {
     disabled: compiling || flashing || !cpp,
     onClick: job.phase === 'ready' ? deliver : compile,
   };
+  const busy = compiling || flashing;
 
   const ws = () => wsRef.current;
 
   return (
     <div style={S.shell}>
       {/* ---- header ---- */}
-      <header style={S.header}>
-        <button style={S.homeBtn} title="Home" onClick={goHome}>⌂</button>
-        <span style={S.brand}>Aurigen<span style={{ color: '#FFD400' }}>.</span></span>
-        <span style={S.boardTag}>{board.name}</span>
+      <header className="aurigen-editor-header" style={S.header}>
+        <button style={S.homeBtn} title="Home" aria-label="Back to home" onClick={goHome}>⌂</button>
+        <span className="aurigen-editor-brand" style={S.brand}>Aurigen<span style={{ color: color.brand }}>.</span></span>
+        <span className="aurigen-editor-boardtag" style={S.boardTag}>{board.name}</span>
 
-        <div style={S.tabs}>
+        <div style={S.tabs} role="tablist" aria-label="View">
           {[['blocks', '🧩 Blocks'], ['cpp', '{ } C++']].map(([key, label]) => (
-            <button key={key}
+            <button key={key} role="tab" aria-selected={tab === key} className="aurigen-tab-btn"
                     style={{ ...S.tab, ...(tab === key ? S.tabActive : {}) }}
                     onClick={() => setTab(key)}>
               {label}
@@ -323,6 +328,7 @@ export default function BlocklyWorkspace({ project, onHome }) {
           ))}
         </div>
 
+        <ThemeToggle style={{ borderColor: color.chromeBorder }} />
         <button style={S.ghostBtn} onClick={() => { setShowShare(true); setCopied(false); }}>Share</button>
         {user ? (
           <button style={S.ghostBtn} onClick={() => signOut()}>Sign out</button>
@@ -332,39 +338,43 @@ export default function BlocklyWorkspace({ project, onHome }) {
       </header>
 
       {!supported && board.flashMethod === 'esptool' && (
-        <div style={S.banner}>
-          This browser can't talk to USB devices — the simulator still works, but use Chrome or
-          Edge on a desktop computer to upload to a real board.
+        <div style={S.banner} role="status">
+          <span aria-hidden="true">ℹ️</span> This browser can't talk to USB devices — the simulator still
+          works, but use Chrome or Edge on a desktop computer to upload to a real board.
         </div>
       )}
 
-      <div style={S.main}>
+      <div className="aurigen-editor-main" style={S.main}>
         {/* ---- left: simulator + download dock (collapsible) ---- */}
-        <aside style={{ ...S.side, ...(simOpen ? {} : S.sideClosed) }}>
+        <aside className={`aurigen-editor-side${simOpen ? '' : ' is-closed'}`}
+               style={{ ...S.side, ...(simOpen ? {} : S.sideClosed) }}>
           <Simulator wsRef={wsRef} rev={rev} board={board} firmware={firmware}
                      firmwareStale={firmware != null && rev > firmware.rev} />
 
           <div style={S.dock}>
             <button
-              style={{ ...S.downloadBtn, opacity: download.disabled ? 0.55 : 1 }}
+              style={{ ...S.downloadBtn, ...(download.disabled ? S.downloadBtnDisabled : {}) }}
               disabled={download.disabled}
               onClick={download.onClick}
             >
+              {busy && <Spinner size={16} />}
               {download.label}
             </button>
             <div style={S.nameRow}>
+              <label htmlFor="project-name-input" style={S.srOnly}>Project name</label>
               <input
+                id="project-name-input"
                 style={S.nameInput}
                 value={title}
                 onChange={(e) => { setTitle(e.target.value); setDirty(true); }}
                 placeholder="Project name"
               />
-              <button style={S.saveBtn} onClick={save} title="Save project">
-                {saveState === 'saving' ? '…' : saveState === 'saved' ? '✓' : '💾'}
+              <button style={S.saveBtn} onClick={save} title="Save project" aria-label="Save project">
+                {saveState === 'saving' ? <Spinner size={14} /> : saveState === 'saved' ? '✓' : '💾'}
               </button>
             </div>
             {flashing && (
-              <div style={S.progressTrack}>
+              <div style={S.progressTrack} role="progressbar" aria-valuenow={flashPct} aria-valuemin={0} aria-valuemax={100}>
                 <div style={{ ...S.progressFill, width: `${flashPct}%` }} />
               </div>
             )}
@@ -375,8 +385,9 @@ export default function BlocklyWorkspace({ project, onHome }) {
         </aside>
 
         {/* MakeCode-style collapse handle between the panels */}
-        <button style={S.collapseHandle} onClick={() => setSimOpen(!simOpen)}
-                title={simOpen ? 'Hide the simulator' : 'Show the simulator'}>
+        <button className="aurigen-collapse-handle" style={S.collapseHandle} onClick={() => setSimOpen(!simOpen)}
+                title={simOpen ? 'Hide the simulator' : 'Show the simulator'}
+                aria-label={simOpen ? 'Hide the simulator' : 'Show the simulator'} aria-expanded={simOpen}>
           {simOpen ? '‹' : '›'}
         </button>
 
@@ -388,18 +399,19 @@ export default function BlocklyWorkspace({ project, onHome }) {
           )}
 
           {job.phase === 'error' && (
-            <pre style={S.errorToast}>
-              {job.message}
-              <button style={S.toastClose} onClick={() => setJob({ phase: 'idle' })}>✕</button>
-            </pre>
+            <div style={S.errorToast} role="alert">
+              <span aria-hidden="true" style={{ flexShrink: 0 }}>⚠</span>
+              <pre style={S.errorText}>{job.message}</pre>
+              <button style={S.toastClose} onClick={() => setJob({ phase: 'idle' })} aria-label="Dismiss error">✕</button>
+            </div>
           )}
 
           {tab === 'blocks' && (
             <div style={S.floatControls}>
-              <button style={S.roundBtn} title="Undo" onClick={() => ws()?.undo(false)}>↶</button>
-              <button style={S.roundBtn} title="Redo" onClick={() => ws()?.undo(true)}>↷</button>
-              <button style={S.roundBtn} title="Zoom in" onClick={() => ws()?.zoomCenter(1)}>＋</button>
-              <button style={S.roundBtn} title="Zoom out" onClick={() => ws()?.zoomCenter(-1)}>－</button>
+              <button style={S.roundBtn} title="Undo" aria-label="Undo" onClick={() => ws()?.undo(false)}>↶</button>
+              <button style={S.roundBtn} title="Redo" aria-label="Redo" onClick={() => ws()?.undo(true)}>↷</button>
+              <button style={S.roundBtn} title="Zoom in" aria-label="Zoom in" onClick={() => ws()?.zoomCenter(1)}>＋</button>
+              <button style={S.roundBtn} title="Zoom out" aria-label="Zoom out" onClick={() => ws()?.zoomCenter(-1)}>－</button>
             </div>
           )}
         </section>
@@ -407,28 +419,27 @@ export default function BlocklyWorkspace({ project, onHome }) {
 
       {/* ---- share dialog: the program travels inside the link ---- */}
       {showShare && (
-        <div style={S.overlay} onClick={() => setShowShare(false)}>
-          <div style={S.modal} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ margin: '0 0 6px' }}>Share this project</h3>
-            <p style={{ fontSize: 13, color: '#666', margin: '0 0 12px' }}>
-              The whole program is encoded in the link — nothing is uploaded.
-              Anyone who opens it gets their own copy.
-            </p>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input style={S.shareInput} readOnly value={encodeShare(board.id, xml)}
-                     onFocus={(e) => e.target.select()} />
-              <button
-                style={S.copyBtn}
-                onClick={async () => {
-                  await navigator.clipboard.writeText(encodeShare(board.id, xml));
-                  setCopied(true);
-                }}
-              >
-                {copied ? '✓ Copied' : 'Copy'}
-              </button>
-            </div>
+        <ModalShell onClose={() => setShowShare(false)} labelledBy="share-title" width={560}>
+          <h3 id="share-title" style={S.modalTitle}>Share this project</h3>
+          <p style={S.modalBody}>
+            The whole program is encoded in the link — nothing is uploaded.
+            Anyone who opens it gets their own copy.
+          </p>
+          <div style={{ display: 'flex', gap: space.sm }}>
+            <label htmlFor="share-link-input" style={S.srOnly}>Share link</label>
+            <input id="share-link-input" style={S.shareInput} readOnly value={encodeShare(board.id, xml)}
+                   onFocus={(e) => e.target.select()} />
+            <button
+              style={S.copyBtn}
+              onClick={async () => {
+                await navigator.clipboard.writeText(encodeShare(board.id, xml));
+                setCopied(true);
+              }}
+            >
+              {copied ? '✓ Copied' : 'Copy'}
+            </button>
           </div>
-        </div>
+        </ModalShell>
       )}
     </div>
   );
@@ -436,89 +447,100 @@ export default function BlocklyWorkspace({ project, onHome }) {
 
 // App chrome stays yellow/white; the dark header mirrors MakeCode.
 const S = {
-  shell: { display: 'flex', flexDirection: 'column', height: '100vh', background: '#FFF', fontFamily: "'Inter', system-ui, sans-serif" },
+  shell: { display: 'flex', flexDirection: 'column', height: '100vh', background: color.surface, color: color.text, fontFamily: font.family },
   header: {
-    display: 'flex', alignItems: 'center', gap: 12, padding: '0 14px', height: 52,
-    background: '#1A1A1A', color: '#FFF', flexShrink: 0,
+    display: 'flex', alignItems: 'center', gap: space.md, padding: `0 ${space.lg}px`, height: 52,
+    background: color.chromeBg, color: color.chromeText, flexShrink: 0,
   },
   homeBtn: {
-    width: 34, height: 34, border: '1px solid #444', background: 'transparent', color: '#FFD400',
-    borderRadius: 8, fontSize: 18, cursor: 'pointer', lineHeight: 1,
+    width: 34, height: 34, border: `1px solid ${color.chromeBorder}`, background: 'transparent', color: color.brand,
+    borderRadius: radius.sm, fontSize: font.lg, cursor: 'pointer', lineHeight: 1,
   },
-  brand: { fontWeight: 800, fontSize: 19, letterSpacing: '-0.02em' },
-  boardTag: { fontSize: 11, color: '#AAA', border: '1px solid #444', borderRadius: 999, padding: '3px 10px' },
-  tabs: { display: 'flex', gap: 4, margin: '0 auto', background: '#2E2E2E', borderRadius: 10, padding: 3 },
+  brand: { fontWeight: 800, fontSize: font.xl, letterSpacing: '-0.02em' },
+  boardTag: { fontSize: font.xs, color: color.chromeTextMuted, border: `1px solid ${color.chromeBorder}`, borderRadius: radius.pill, padding: '3px 10px' },
+  tabs: { display: 'flex', gap: 4, margin: '0 auto', background: '#2E2E32', borderRadius: radius.md, padding: 3 },
   tab: {
-    border: 'none', background: 'transparent', color: '#BBB', fontWeight: 600, fontSize: 13,
-    padding: '7px 18px', borderRadius: 8, cursor: 'pointer',
+    border: 'none', background: 'transparent', color: color.chromeTextMuted, fontWeight: 600, fontSize: font.sm,
+    padding: '7px 18px', borderRadius: radius.sm, cursor: 'pointer',
   },
-  tabActive: { background: '#FFD400', color: '#1A1A1A' },
+  tabActive: { background: color.brand, color: color.brandInk },
   ghostBtn: {
-    border: '1px solid #444', background: 'transparent', color: '#BBB', borderRadius: 8,
-    padding: '6px 12px', fontSize: 12, cursor: 'pointer',
+    border: `1px solid ${color.chromeBorder}`, background: 'transparent', color: color.chromeTextMuted, borderRadius: radius.sm,
+    padding: '6px 12px', fontSize: font.sm, cursor: 'pointer',
   },
   signInBtn: {
-    border: 'none', background: '#FFD400', color: '#1A1A1A', fontWeight: 700, borderRadius: 8,
-    padding: '7px 16px', fontSize: 12.5, cursor: 'pointer',
+    border: 'none', background: color.brand, color: color.brandInk, fontWeight: 700, borderRadius: radius.sm,
+    padding: '7px 16px', fontSize: font.sm, cursor: 'pointer',
   },
-  banner: { padding: '8px 16px', background: '#FFF9DB', fontSize: 13, borderBottom: '1px solid #FFF3B0' },
+  banner: {
+    display: 'flex', alignItems: 'center', gap: space.sm, padding: '8px 16px', background: color.warningBg,
+    color: color.warningInk, fontSize: font.sm, borderBottom: `1px solid ${color.border}`,
+  },
   main: { flex: 1, display: 'flex', minHeight: 0 },
   side: {
-    width: 330, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10,
-    padding: 12, background: '#ECECEC', borderRight: '1px solid #DDD', minHeight: 0,
-    overflow: 'hidden', transition: 'width 200ms ease, padding 200ms ease',
+    width: 330, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: space.sm,
+    padding: space.md, background: color.surfaceAlt, borderRight: `1px solid ${color.border}`, minHeight: 0,
+    overflow: 'hidden', transition: `width ${motion.base}, padding ${motion.base}`,
   },
-  sideClosed: { width: 0, padding: '12px 0' },
+  sideClosed: { width: 0, padding: `${space.md}px 0` },
   collapseHandle: {
-    alignSelf: 'center', width: 18, height: 72, border: '1px solid #DDD', borderLeft: 'none',
-    background: '#ECECEC', color: '#666', borderRadius: '0 10px 10px 0', cursor: 'pointer',
-    fontSize: 15, padding: 0, flexShrink: 0, zIndex: 5,
+    alignSelf: 'center', width: 18, height: 72, border: `1px solid ${color.border}`, borderLeft: 'none',
+    background: color.surfaceAlt, color: color.textSecondary, borderRadius: `0 ${radius.md}px ${radius.md}px 0`, cursor: 'pointer',
+    fontSize: font.md, padding: 0, flexShrink: 0, zIndex: 5,
   },
-  dock: { display: 'flex', flexDirection: 'column', gap: 8 },
+  dock: { display: 'flex', flexDirection: 'column', gap: space.sm },
   downloadBtn: {
-    border: 'none', borderRadius: 12, padding: '14px 0', background: '#FFD400', color: '#1A1A1A',
-    fontWeight: 800, fontSize: 16, cursor: 'pointer', boxShadow: '0 2px 0 #D9B400',
+    border: 'none', borderRadius: radius.lg, padding: '14px 0', background: color.brand, color: color.brandInk,
+    fontWeight: 800, fontSize: font.md, cursor: 'pointer', boxShadow: shadow.brandBtn,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: space.sm,
   },
-  nameRow: { display: 'flex', gap: 6 },
+  downloadBtnDisabled: { opacity: 0.55, boxShadow: 'none' },
+  nameRow: { display: 'flex', gap: space.xs },
   nameInput: {
-    flex: 1, border: '2px solid #DDD', borderRadius: 10, padding: '9px 12px', fontSize: 13,
-    outlineColor: '#FFD400', background: '#FFF',
+    flex: 1, border: `2px solid ${color.border}`, borderRadius: radius.md, padding: '9px 12px', fontSize: font.sm,
+    background: color.surface, color: color.text,
   },
-  saveBtn: { width: 42, border: '2px solid #DDD', borderRadius: 10, background: '#FFF', cursor: 'pointer', fontSize: 14 },
-  hexLink: { border: 'none', background: 'transparent', color: '#8A6D00', fontSize: 11.5, cursor: 'pointer', padding: 0 },
-  progressTrack: { height: 6, background: '#DDD', borderRadius: 3, overflow: 'hidden' },
-  progressFill: { height: '100%', background: '#FFD400', transition: 'width 200ms' },
+  saveBtn: {
+    width: 42, border: `2px solid ${color.border}`, borderRadius: radius.md, background: color.surface,
+    cursor: 'pointer', fontSize: font.base, display: 'grid', placeItems: 'center', color: color.text,
+  },
+  hexLink: { border: 'none', background: 'transparent', color: color.brandTintInk, fontSize: font.xs, cursor: 'pointer', padding: 0, textDecoration: 'underline', textUnderlineOffset: 2 },
+  progressTrack: { height: 6, background: color.surfaceSunken, borderRadius: 3, overflow: 'hidden' },
+  progressFill: { height: '100%', background: color.brand, transition: 'width 200ms' },
   stage: { flex: 1, position: 'relative', minWidth: 0 },
   blockly: { position: 'absolute', inset: 0 },
   codeView: {
-    position: 'absolute', inset: 0, margin: 0, padding: 20, overflow: 'auto',
-    background: '#FFFDF0', fontSize: 13.5, lineHeight: 1.6, fontFamily: "'Consolas', monospace",
+    position: 'absolute', inset: 0, margin: 0, padding: space.xxl, overflow: 'auto',
+    background: color.surfaceAlt, color: color.text, fontSize: 13.5, lineHeight: 1.6, fontFamily: font.mono,
   },
   errorToast: {
     position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 60,
-    maxWidth: '80%', maxHeight: 160, overflow: 'auto', margin: 0, padding: '12px 36px 12px 14px',
-    background: '#1A1A1A', color: '#FFD400', borderRadius: 10, fontSize: 12, whiteSpace: 'pre-wrap',
+    maxWidth: '80%', maxHeight: 200, overflow: 'auto', display: 'flex', gap: space.sm, alignItems: 'flex-start',
+    padding: '12px 36px 12px 14px', background: color.chromeBg, color: color.brand, borderRadius: radius.md,
+    fontSize: font.sm, boxShadow: shadow.lg, animation: 'slideUp 180ms cubic-bezier(0.2,0,0,1)',
   },
+  errorText: { margin: 0, whiteSpace: 'pre-wrap', fontFamily: font.mono, fontSize: font.xs },
   toastClose: {
-    position: 'absolute', top: 6, right: 6, border: 'none', background: 'transparent',
-    color: '#FFF', cursor: 'pointer', fontSize: 12,
+    position: 'absolute', top: 8, right: 8, border: 'none', background: 'transparent',
+    color: color.chromeTextMuted, cursor: 'pointer', fontSize: font.sm, width: 22, height: 22, borderRadius: radius.sm,
   },
-  floatControls: { position: 'absolute', right: 16, bottom: 16, display: 'flex', gap: 8, zIndex: 50 },
+  floatControls: { position: 'absolute', right: 16, bottom: 16, display: 'flex', gap: space.sm, zIndex: 50 },
   roundBtn: {
-    width: 40, height: 40, borderRadius: '50%', border: '1px solid #DDD', background: '#FFF',
-    fontSize: 16, cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+    width: 40, height: 40, borderRadius: '50%', border: `1px solid ${color.border}`, background: color.surface,
+    color: color.text, fontSize: font.md, cursor: 'pointer', boxShadow: shadow.sm,
   },
-  overlay: {
-    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'grid',
-    placeItems: 'center', zIndex: 100,
-  },
-  modal: { background: '#FFF', borderRadius: 16, padding: 22, width: 'min(560px, 92vw)' },
+  modalTitle: { margin: '0 0 6px', fontSize: font.xl, color: color.text },
+  modalBody: { fontSize: font.sm, color: color.textSecondary, margin: `0 0 ${space.md}px`, lineHeight: 1.5 },
   shareInput: {
-    flex: 1, border: '2px solid #EEE', borderRadius: 10, padding: '9px 12px', fontSize: 12,
-    fontFamily: 'monospace', color: '#555', outlineColor: '#FFD400',
+    flex: 1, border: `2px solid ${color.border}`, borderRadius: radius.md, padding: '9px 12px', fontSize: font.xs,
+    fontFamily: font.mono, color: color.textSecondary, background: color.surfaceAlt,
   },
   copyBtn: {
-    border: 'none', borderRadius: 10, background: '#FFD400', fontWeight: 700, padding: '0 16px',
+    border: 'none', borderRadius: radius.md, background: color.brand, color: color.brandInk, fontWeight: 700, padding: '0 16px',
     cursor: 'pointer',
+  },
+  srOnly: {
+    position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden',
+    clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0,
   },
 };

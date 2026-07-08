@@ -9,6 +9,14 @@
     <meta property="og:title" content="Aurigen — Code ESP32 & Arduino from your browser" />
     <meta property="og:description" content="Block programming with real C++, a firmware-accurate simulator, and one-click USB flashing. Start building — no account needed." />
     <meta property="og:type" content="website" />
+    <script>
+      // Apply the saved theme before first paint — avoids a flash of the
+      // wrong theme. No saved value = follow the OS (global.css handles it).
+      try {
+        const t = localStorage.getItem('aurigen.theme');
+        if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+      } catch { /* localStorage unavailable (privacy mode) — OS default applies */ }
+    </script>
   </head>
   <body style="margin:0">
     <div id="root"></div>

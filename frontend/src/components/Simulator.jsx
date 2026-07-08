@@ -14,6 +14,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { SimRunner, analyzeUsage } from '../simulator/interpreter';
 import ArduinoUnoSVG from '../boards/ArduinoUnoSVG';
 import Esp32DevkitSVG from '../boards/Esp32DevkitSVG';
+import { color, space, radius, font, shadow } from '../design/tokens';
 
 const PLOT_POINTS = 240;
 
@@ -199,11 +200,13 @@ export default function Simulator({ wsRef, rev, board, firmware, firmwareStale }
             <div key={pin} style={S.inputRow}>
               <button
                 style={{ ...S.pushBtn, ...(buttons[pin] ? S.pushBtnDown : {}) }}
+                aria-label={`Press pin ${board.pinLabel(pin)} (pull-up: released = HIGH, pressed = LOW)`}
+                aria-pressed={!!buttons[pin]}
                 onMouseDown={() => pressButton(pin, true)}
                 onMouseUp={() => pressButton(pin, false)}
                 onMouseLeave={() => buttons[pin] && pressButton(pin, false)}
               >
-                ●
+                <span aria-hidden="true">●</span>
               </button>
               <span style={S.inputLabel}>{board.pinLabel(pin)}</span>
               <span style={S.inputValue}>{buttons[pin] ? 'LOW' : 'HIGH'}</span>
@@ -211,10 +214,12 @@ export default function Simulator({ wsRef, rev, board, firmware, firmwareStale }
           ))}
           {analogPins.map((pin) => (
             <div key={pin} style={S.inputRow}>
+              <label style={S.srOnly} htmlFor={`slider-${pin}`}>Analog input on pin {board.pinLabel(pin)}</label>
               <input
+                id={`slider-${pin}`}
                 type="range" min="0" max={board.adcMax} value={sliders[pin] ?? 0}
                 onChange={(e) => moveSlider(pin, Number(e.target.value))}
-                style={{ flex: 1, accentColor: '#FFD400' }}
+                style={{ flex: 1, accentColor: color.brand }}
               />
               <span style={S.inputLabel}>{board.pinLabel(pin)}</span>
               <span style={S.inputValue}>{sliders[pin] ?? 0}</span>
@@ -226,7 +231,7 @@ export default function Simulator({ wsRef, rev, board, firmware, firmwareStale }
       {/* engine picker — the headline feature for the Uno: run the REAL
           compiled firmware on a simulated ATmega328P (avr8js) */}
       {board.short === 'uno' && (
-        <div style={S.engineRow}>
+        <div style={S.engineRow} role="tablist" aria-label="Simulation engine">
           {[
             ['blocks', '⚡ Blocks', 'Instant: interprets your blocks live while you edit'],
             ['firmware', firmwareStale ? '🔬 Firmware •' : '🔬 Firmware', !firmware
@@ -237,12 +242,13 @@ export default function Simulator({ wsRef, rev, board, firmware, firmwareStale }
           ].map(([key, label, tip]) => (
             <button
               key={key}
+              role="tab"
+              aria-selected={engine === key}
               title={tip}
               disabled={key === 'firmware' && !firmware}
               style={{
                 ...S.engineBtn,
                 ...(engine === key ? S.engineBtnOn : {}),
-                ...(key === 'firmware' && !firmware ? { opacity: 0.45, cursor: 'default' } : {}),
               }}
               onClick={() => {
                 if (key === 'firmware' && !firmware) return;
@@ -258,20 +264,22 @@ export default function Simulator({ wsRef, rev, board, firmware, firmwareStale }
 
       {/* transport — MakeCode-style simulator toolbar */}
       <div style={S.transport}>
-        <button style={{ ...S.playBtn, background: sim.running ? '#D83B3B' : '#107C10' }}
+        <button style={{ ...S.playBtn, background: sim.running ? color.danger : color.success }}
                 onClick={sim.running ? stop : run}>
           {sim.running ? '■ Stop' : '▶ Run'}
         </button>
-        <button style={S.miniBtn} onClick={run} title="Restart">⟳</button>
+        <button style={S.miniBtn} onClick={run} title="Restart" aria-label="Restart simulation">⟳</button>
         <button
           style={{ ...S.miniBtn, ...(slowMo ? S.miniBtnOn : {}) }}
           onClick={toggleSlowMo}
           title="Slow-mo (runs delays 4× slower for debugging)"
+          aria-label="Toggle slow motion" aria-pressed={slowMo}
         >
           🐢
         </button>
-        <button style={S.miniBtn} onClick={screenshotBoard} title="Save a picture of the board">📷</button>
-        <button style={S.miniBtn} onClick={() => setFs(!fs)} title={fs ? 'Exit fullscreen (Esc)' : 'Fullscreen board'}>
+        <button style={S.miniBtn} onClick={screenshotBoard} title="Save a picture of the board" aria-label="Save a picture of the board">📷</button>
+        <button style={S.miniBtn} onClick={() => setFs(!fs)} title={fs ? 'Exit fullscreen (Esc)' : 'Fullscreen board'}
+                aria-label={fs ? 'Exit fullscreen' : 'Fullscreen board'} aria-pressed={fs}>
           {fs ? '🗗' : '⛶'}
         </button>
       </div>
@@ -280,7 +288,7 @@ export default function Simulator({ wsRef, rev, board, firmware, firmwareStale }
       <div style={S.serial}>
         <div style={S.serialHead}>
           {[['monitor', 'Monitor'], ['plot', 'Plot']].map(([key, label]) => (
-            <button key={key}
+            <button key={key} role="tab" aria-selected={serialTab === key}
                     style={{ ...S.serialTabBtn, ...(serialTab === key ? S.serialTabOn : {}) }}
                     onClick={() => setSerialTab(key)}>
               {label}
@@ -290,15 +298,15 @@ export default function Simulator({ wsRef, rev, board, firmware, firmwareStale }
           {serialTab === 'plot' && plotHover != null && plot[plotHover] != null && (
             <span style={S.hoverReadout}>{plot[plotHover]}</span>
           )}
-          <button style={S.clearBtn} onClick={clearSerial} title="Clear output">✕ clear</button>
+          <button style={S.clearBtn} onClick={clearSerial} title="Clear output" aria-label="Clear serial output">✕ clear</button>
         </div>
 
         {serialTab === 'monitor' ? (
-          <div style={S.serialBody}>
+          <div style={S.serialBody} role="log" aria-label="Serial monitor output">
             {sim.serial.length === 0
-              ? <span style={{ opacity: 0.4 }}>115200 baud — output appears when the simulation runs</span>
+              ? <span style={{ opacity: 0.5 }}>115200 baud — output appears when the simulation runs</span>
               : sim.serial.map((l, i) => (
-                  <div key={i} style={l.startsWith('⚠') ? { color: '#FFB84D' } : undefined}>{l}</div>
+                  <div key={i} style={l.startsWith('⚠') ? { color: color.warning } : undefined}>{l}</div>
                 ))}
             <div ref={serialEndRef} />
           </div>
@@ -315,8 +323,8 @@ function SerialPlot({ points, hover, onHover }) {
   const W = 300, H = 110, PAD = 8;
   if (points.length < 2) {
     return (
-      <div style={{ ...S.serialBody, color: '#7CFC7C' }}>
-        <span style={{ opacity: 0.4 }}>
+      <div style={{ ...S.serialBody, color: color.terminalText }}>
+        <span style={{ opacity: 0.5 }}>
           serial-print numbers and they chart here live — try the “Breathing LED” example
         </span>
       </div>
@@ -332,6 +340,7 @@ function SerialPlot({ points, hover, onHover }) {
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
+      role="img" aria-label={`Live plot of serial values, currently ${points[hi]}`}
       style={{ flex: 1, width: '100%', minHeight: 110, display: 'block', cursor: 'crosshair' }}
       onMouseMove={(e) => {
         const r = e.currentTarget.getBoundingClientRect();
@@ -343,14 +352,14 @@ function SerialPlot({ points, hover, onHover }) {
       {/* recessive grid + min/max in muted ink */}
       {[0.25, 0.5, 0.75].map((f) => (
         <line key={f} x1={PAD} x2={W - PAD} y1={PAD + f * (H - PAD * 2)} y2={PAD + f * (H - PAD * 2)}
-              stroke="#2A2A2A" strokeWidth="1" />
+              stroke="#2A2A2E" strokeWidth="1" />
       ))}
-      <text x={W - PAD} y={PAD + 3} fontSize="7" fill="#888" textAnchor="end" fontFamily="monospace">{round2(max)}</text>
-      <text x={W - PAD} y={H - PAD} fontSize="7" fill="#888" textAnchor="end" fontFamily="monospace">{round2(min)}</text>
+      <text x={W - PAD} y={PAD + 3} fontSize="7" fill="#8A8B93" textAnchor="end" fontFamily="monospace">{round2(max)}</text>
+      <text x={W - PAD} y={H - PAD} fontSize="7" fill="#8A8B93" textAnchor="end" fontFamily="monospace">{round2(min)}</text>
 
       <path d={d} fill="none" stroke="#FFD400" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
       {/* current / hovered sample marker with a surface ring */}
-      <circle cx={x(hi)} cy={y(points[hi])} r="4.5" fill="#111" />
+      <circle cx={x(hi)} cy={y(points[hi])} r="4.5" fill="#111114" />
       <circle cx={x(hi)} cy={y(points[hi])} r="3" fill="#FFD400" />
     </svg>
   );
@@ -359,63 +368,67 @@ function SerialPlot({ points, hover, onHover }) {
 const round2 = (n) => Math.round(n * 100) / 100;
 
 const S = {
-  panel: { display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0, flex: 1, overflowY: 'auto' },
+  panel: { display: 'flex', flexDirection: 'column', gap: space.sm, minHeight: 0, flex: 1, overflowY: 'auto' },
   panelFs: {
-    position: 'fixed', inset: 0, zIndex: 200, background: '#F2F2F2', padding: '24px max(24px, 15vw)',
+    position: 'fixed', inset: 0, zIndex: 200, background: color.bg, padding: '24px max(24px, 15vw)',
     overflowY: 'auto',
   },
   boardWrap: {
-    background: '#F7F7F7', borderRadius: 14, padding: 10,
-    border: '1px solid #E2E2E2', boxShadow: 'inset 0 1px 4px rgba(0,0,0,0.06)',
+    background: color.surfaceSunken, borderRadius: radius.lg, padding: space.md,
+    border: `1px solid ${color.border}`, boxShadow: 'inset 0 1px 4px var(--shadow-color-sm)',
   },
-  boardWrapFs: { display: 'grid', placeItems: 'center', padding: 24 },
+  boardWrapFs: { display: 'grid', placeItems: 'center', padding: space.xxl },
   tilt: { transition: 'transform 150ms ease-out', transformStyle: 'preserve-3d', width: '100%' },
-  inputs: { display: 'flex', flexDirection: 'column', gap: 6, padding: '2px 4px' },
-  inputRow: { display: 'flex', alignItems: 'center', gap: 8 },
-  inputLabel: { fontSize: 11, fontFamily: 'monospace', color: '#444', width: 56 },
-  inputValue: { fontSize: 11, fontFamily: 'monospace', color: '#8A6D00', marginLeft: 'auto' },
+  inputs: { display: 'flex', flexDirection: 'column', gap: space.sm, padding: '2px 4px' },
+  inputRow: { display: 'flex', alignItems: 'center', gap: space.sm },
+  inputLabel: { fontSize: font.xs, fontFamily: font.mono, color: color.textSecondary, width: 56 },
+  inputValue: { fontSize: font.xs, fontFamily: font.mono, color: color.brandTintInk, marginLeft: 'auto' },
   pushBtn: {
-    width: 22, height: 22, borderRadius: '50%', border: '2px solid #999', background: '#DDD',
-    color: '#666', cursor: 'pointer', fontSize: 9, lineHeight: '16px', padding: 0, flexShrink: 0,
+    width: 22, height: 22, borderRadius: '50%', border: `2px solid ${color.borderStrong}`, background: color.surfaceSunken,
+    color: color.textSecondary, cursor: 'pointer', fontSize: 9, lineHeight: '16px', padding: 0, flexShrink: 0,
     transition: 'transform 80ms, background 80ms',
   },
   pushBtnDown: { background: '#00E5FF', color: '#003A42', borderColor: '#00B8CC', transform: 'scale(0.88)' },
-  engineRow: { display: 'flex', gap: 4, background: '#E0E0E0', borderRadius: 10, padding: 3 },
+  engineRow: { display: 'flex', gap: 4, background: color.surfaceSunken, borderRadius: radius.md, padding: 3 },
   engineBtn: {
-    flex: 1, border: 'none', background: 'transparent', color: '#555', fontWeight: 700,
-    fontSize: 12, padding: '7px 0', borderRadius: 8, cursor: 'pointer',
+    flex: 1, border: 'none', background: 'transparent', color: color.textSecondary, fontWeight: 700,
+    fontSize: font.sm, padding: '7px 0', borderRadius: radius.sm, cursor: 'pointer',
   },
-  engineBtnOn: { background: '#FFF', color: '#1A1A1A', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
-  transport: { display: 'flex', gap: 6 },
+  engineBtnOn: { background: color.surface, color: color.text, boxShadow: shadow.sm },
+  transport: { display: 'flex', gap: space.xs },
   playBtn: {
-    flex: 1, border: 'none', borderRadius: 10, padding: '10px 0', color: '#FFF',
-    fontWeight: 700, fontSize: 14, cursor: 'pointer',
+    flex: 1, border: 'none', borderRadius: radius.md, padding: '10px 0', color: '#FFF',
+    fontWeight: 700, fontSize: font.base, cursor: 'pointer',
   },
   miniBtn: {
-    width: 40, border: '2px solid #DDD', borderRadius: 10, background: '#FFF',
-    fontSize: 15, cursor: 'pointer', padding: 0,
+    width: 40, border: `2px solid ${color.border}`, borderRadius: radius.md, background: color.surface,
+    fontSize: font.md, cursor: 'pointer', padding: 0, color: color.text,
   },
-  miniBtnOn: { background: '#FFD400', borderColor: '#D9B400' },
+  miniBtnOn: { background: color.brand, borderColor: color.brandShadow },
   serial: {
     flex: 1, minHeight: 96, display: 'flex', flexDirection: 'column',
-    background: '#111', borderRadius: 10, overflow: 'hidden',
+    background: color.terminalBg, borderRadius: radius.md, overflow: 'hidden',
   },
   serialHead: {
     display: 'flex', alignItems: 'center', gap: 4, padding: '5px 8px',
-    borderBottom: '1px solid #222',
+    borderBottom: '1px solid #222226',
   },
   serialTabBtn: {
-    border: 'none', background: 'transparent', color: '#888', fontSize: 11, fontWeight: 700,
-    padding: '4px 10px', borderRadius: 6, cursor: 'pointer', textTransform: 'uppercase',
+    border: 'none', background: 'transparent', color: '#8A8B93', fontSize: font.xs, fontWeight: 700,
+    padding: '4px 10px', borderRadius: radius.sm, cursor: 'pointer', textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  serialTabOn: { background: '#2A2A2A', color: '#FFD400' },
-  hoverReadout: { fontSize: 11, fontFamily: 'monospace', color: '#DDD', marginRight: 8 },
+  serialTabOn: { background: '#28282D', color: color.brand },
+  hoverReadout: { fontSize: font.xs, fontFamily: font.mono, color: '#DDD', marginRight: space.sm },
   clearBtn: {
-    border: 'none', background: 'transparent', color: '#666', fontSize: 10.5, cursor: 'pointer',
+    border: 'none', background: 'transparent', color: '#8A8B93', fontSize: 10.5, cursor: 'pointer',
   },
   serialBody: {
-    flex: 1, overflowY: 'auto', padding: '8px 10px', fontFamily: 'monospace',
-    fontSize: 12, color: '#7CFC7C', lineHeight: 1.5, whiteSpace: 'pre-wrap',
+    flex: 1, overflowY: 'auto', padding: '8px 10px', fontFamily: font.mono,
+    fontSize: font.sm, color: color.terminalText, lineHeight: 1.5, whiteSpace: 'pre-wrap',
+  },
+  srOnly: {
+    position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden',
+    clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0,
   },
 };

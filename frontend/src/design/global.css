@@ -1,0 +1,255 @@
+/* ============================================================
+   STACK LAYER: Frontend / Global Stylesheet
+   Design-token values, dark mode, resets, focus-visible rings,
+   animations, and the handful of responsive rules inline style
+   objects can't express (media queries, :focus-visible, pseudo-
+   elements, prefers-reduced-motion).
+
+   Theme resolution order (first match wins):
+     1. :root[data-theme="light"]  -> forced light, ignores OS
+     2. :root[data-theme="dark"]   -> forced dark, ignores OS
+     3. no data-theme attribute    -> follows prefers-color-scheme
+   ThemeToggle.jsx sets/clears the attribute and persists the
+   choice; index.html has a pre-paint inline script so there's
+   no flash of the wrong theme on load.
+   ============================================================ */
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background-color 180ms ease, color 180ms ease;
+}
+button, input, select, textarea { font-family: inherit; color: inherit; }
+button { touch-action: manipulation; }
+a { color: inherit; }
+svg { display: block; }
+
+/* ---- Light theme (the fallback) ------------------------------ */
+:root {
+  --bg: #F4F4F5;
+  --surface: #FFFFFF;
+  --surface-alt: #EFEFF1;
+  --surface-sunken: #E7E7EA;
+  --border: #E2E2E5;
+  --border-strong: #CCCCD2;
+
+  --text: #17171A;
+  --text-secondary: #55565E;
+  --text-muted: #8A8B93;
+
+  --brand: #FFD400;
+  --brand-ink: #17171A;
+  --brand-shadow: #D9B400;
+  --brand-tint: #FFF4C2;
+  --brand-tint-ink: #6B5900;
+
+  --danger: #D3342A;
+  --danger-bg: #FDECEA;
+  --danger-ink: #8C2118;
+  --success: #1B8A3D;
+  --success-bg: #E9F7EE;
+  --success-ink: #14622C;
+  --warning: #A85E00;
+  --warning-bg: #FFF3DE;
+  --warning-ink: #7A4600;
+
+  --chrome-bg: #18181B;
+  --chrome-border: #333338;
+  --chrome-text: #F4F4F5;
+  --chrome-text-muted: #A2A2AA;
+  --terminal-bg: #101012;
+  --terminal-text: #7CFC7C;
+
+  --focus-ring: #2F6FEB;
+  --overlay: rgba(12, 12, 14, 0.5);
+
+  --shadow-color-sm: rgba(20, 20, 25, 0.08);
+  --shadow-color-md: rgba(20, 20, 25, 0.14);
+  --shadow-color-lg: rgba(10, 10, 14, 0.32);
+
+  color-scheme: light;
+}
+
+/* ---- Dark theme ----------------------------------------------
+   Two paths apply the same values: "system prefers dark and the
+   user hasn't forced light" (media-query gated), and "user forced
+   dark via the toggle" (unconditional, ignores the OS setting). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0D0D0F;
+    --surface: #19191C;
+    --surface-alt: #202024;
+    --surface-sunken: #0A0A0B;
+    --border: #2B2B30;
+    --border-strong: #3A3A40;
+
+    --text: #F2F2F4;
+    --text-secondary: #B6B7BE;
+    --text-muted: #7C7D84;
+
+    --brand-shadow: #C9A600;
+    --brand-tint: #3D3410;
+    --brand-tint-ink: #FFD75E;
+
+    --danger: #FF6B60;
+    --danger-bg: #3A1614;
+    --danger-ink: #FFD9D6;
+    --success: #4ADE80;
+    --success-bg: #12321C;
+    --success-ink: #BFF5D2;
+    --warning: #FFB84D;
+    --warning-bg: #3A2A0E;
+    --warning-ink: #FFE0AE;
+
+    --focus-ring: #5B9BFF;
+    --overlay: rgba(0, 0, 0, 0.65);
+
+    --shadow-color-sm: rgba(0, 0, 0, 0.4);
+    --shadow-color-md: rgba(0, 0, 0, 0.5);
+    --shadow-color-lg: rgba(0, 0, 0, 0.65);
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0D0D0F;
+  --surface: #19191C;
+  --surface-alt: #202024;
+  --surface-sunken: #0A0A0B;
+  --border: #2B2B30;
+  --border-strong: #3A3A40;
+
+  --text: #F2F2F4;
+  --text-secondary: #B6B7BE;
+  --text-muted: #7C7D84;
+
+  --brand-shadow: #C9A600;
+  --brand-tint: #3D3410;
+  --brand-tint-ink: #FFD75E;
+
+  --danger: #FF6B60;
+  --danger-bg: #3A1614;
+  --danger-ink: #FFD9D6;
+  --success: #4ADE80;
+  --success-bg: #12321C;
+  --success-ink: #BFF5D2;
+  --warning: #FFB84D;
+  --warning-bg: #3A2A0E;
+  --warning-ink: #FFE0AE;
+
+  --focus-ring: #5B9BFF;
+  --overlay: rgba(0, 0, 0, 0.65);
+
+  --shadow-color-sm: rgba(0, 0, 0, 0.4);
+  --shadow-color-md: rgba(0, 0, 0, 0.5);
+  --shadow-color-lg: rgba(0, 0, 0, 0.65);
+
+  color-scheme: dark;
+}
+
+/* ---- Focus ring: keyboard-visible only, never on mouse click --- */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ---- Scrollbars: thin, theme-aware, no layout jump ------------- */
+* { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* ---- Motion: honor the OS reduced-motion preference ------------ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ---- Responsive utilities (media queries inline styles can't do) --- */
+/* Editor: simulator panel becomes a bottom sheet under ~860px */
+@media (max-width: 640px) {
+  .aurigen-editor-boardtag { display: none !important; }
+  .aurigen-editor-brand { display: none !important; }
+  .aurigen-editor-header { gap: 6px !important; padding: 0 8px !important; }
+  .aurigen-editor-header .aurigen-tab-btn { padding: 7px 10px !important; font-size: 12px !important; }
+}
+@media (max-width: 860px) {
+  .aurigen-editor-main { flex-direction: column !important; }
+  .aurigen-editor-side {
+    width: auto !important;
+    max-height: 60vh;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border);
+    /* Let the simulator's natural content height (board + transport +
+       serial) stand, and scroll the WHOLE side panel as one unit —
+       flex-column squeeze here would otherwise compress the board,
+       transport, and serial monitor to fit, hiding Run/serial below
+       an easy-to-miss nested scrollport. */
+    display: block !important;
+    overflow-y: auto !important;
+  }
+  .aurigen-editor-side.is-closed { max-height: 0; padding: 0 !important; overflow: hidden !important; }
+  .aurigen-collapse-handle { display: none !important; }
+  .aurigen-editor-tagline { display: none; }
+}
+
+/* Home: hero stacks, board art shrinks/hides on phones */
+@media (max-width: 720px) {
+  .aurigen-hero { flex-direction: column !important; align-items: flex-start !important; }
+  .aurigen-hero-boards { display: none !important; }
+  .aurigen-header-tagline { display: none !important; }
+}
+@media (max-width: 480px) {
+  .aurigen-board-modal-row { flex-direction: column !important; }
+}
+
+/* ---- Shared hover/press micro-interactions --------------------- */
+.aurigen-project-card {
+  will-change: transform;
+}
+.aurigen-project-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-strong) !important;
+  box-shadow: 0 6px 20px var(--shadow-color-sm);
+}
+.aurigen-project-card:active { transform: translateY(0); }
+
+button:not(:disabled):hover { filter: brightness(1.04); }
+button:not(:disabled):active { transform: translateY(1px); }
+button:disabled { cursor: default; opacity: 0.55; }
+
+.aurigen-delete-btn:hover {
+  color: var(--danger) !important;
+  background: var(--danger-bg) !important;
+  filter: none;
+}
+
