@@ -12,13 +12,12 @@
 // ============================================================
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { SimRunner, analyzeUsage } from '../simulator/interpreter';
-import { AvrRunner } from '../simulator/engines/avrEngine';
 import ArduinoUnoSVG from '../boards/ArduinoUnoSVG';
 import Esp32DevkitSVG from '../boards/Esp32DevkitSVG';
 
 const PLOT_POINTS = 240;
 
-export default function Simulator({ wsRef, rev, board, firmware }) {
+export default function Simulator({ wsRef, rev, board, firmware, firmwareStale }) {
   const runnerRef = useRef(null);
   const serialEndRef = useRef(null);
   const boardWrapRef = useRef(null);
@@ -77,11 +76,13 @@ export default function Simulator({ wsRef, rev, board, firmware }) {
     return () => window.removeEventListener('keydown', h);
   }, [fs]);
 
-  function run() {
+  async function run() {
     runnerRef.current?.stop();
     let runner;
     if (engine === 'firmware' && firmware?.hex) {
       try {
+        // avr8js loads on demand — simulator-only users never download it.
+        const { AvrRunner } = await import('../simulator/engines/avrEngine');
         runner = new AvrRunner(firmware.hex, board, setSim);
       } catch (e) {
         setSim((s) => ({ ...s, serial: [...s.serial, `⚠ firmware load failed: ${e.message}`] }));
@@ -228,9 +229,11 @@ export default function Simulator({ wsRef, rev, board, firmware }) {
         <div style={S.engineRow}>
           {[
             ['blocks', '⚡ Blocks', 'Instant: interprets your blocks live while you edit'],
-            ['firmware', '🔬 Firmware', firmware
-              ? 'Runs the real compiled .hex on a simulated ATmega328P — cycle-accurate PWM, timers, serial'
-              : 'Compile once (Download button) to unlock — then your real firmware runs right here'],
+            ['firmware', firmwareStale ? '🔬 Firmware •' : '🔬 Firmware', !firmware
+              ? 'Compile once (Download button) to unlock — then your real firmware runs right here'
+              : firmwareStale
+                ? 'Your blocks changed since this build — it still runs, but hit Download to rebuild'
+                : 'Runs the real compiled .hex on a simulated ATmega328P — cycle-accurate PWM, timers, serial'],
           ].map(([key, label, tip]) => (
             <button
               key={key}

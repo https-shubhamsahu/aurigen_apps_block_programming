@@ -247,12 +247,12 @@ export class SimRunner {
         const a = await this.value(b, 'A');
         const c = await this.value(b, 'B');
         switch (b.getFieldValue('OP')) {
-          case 'NEQ': return a != c; // eslint-disable-line eqeqeq
+          case 'NEQ': return a != c;  
           case 'LT': return a < c;
           case 'LTE': return a <= c;
           case 'GT': return a > c;
           case 'GTE': return a >= c;
-          default: return a == c; // eslint-disable-line eqeqeq
+          default: return a == c;  
         }
       }
       case 'logic_operation': {

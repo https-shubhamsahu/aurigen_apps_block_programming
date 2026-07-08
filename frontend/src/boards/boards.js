@@ -40,7 +40,7 @@ export const BOARDS = {
     adcPins: ['A0', 'A1', 'A2', 'A3', 'A4', 'A5'].map((p) => [p, p]),
     adcMax: 1023,
     hasWifi: false,
-    flashMethod: 'hex',       // browser AVR flashing is future work → download .hex
+    flashMethod: 'hex',       // STK500v1 over Web Serial (useAvrFlash); .hex download fallback
     pinLabel: (pin) => (String(pin).startsWith('A') ? String(pin) : `D${pin}`),
   },
 };

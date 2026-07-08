@@ -34,14 +34,8 @@ export const CAT = {
   math: '#712672',
 };
 
-// LEDC has 16 channels; hand them out per unique pin, deterministically.
-const ledcChannelForPin = (() => {
-  const map = new Map();
-  return (pin) => {
-    if (!map.has(pin)) map.set(pin, map.size % 16);
-    return map.get(pin);
-  };
-})();
+// LEDC channel allocation lives on the generator (cppGenerator.ledcChannelForPin)
+// so it resets per generation — same program, same channels, every time.
 
 // ---- Hardware blocks (dynamic dropdowns → JS-style definitions) ----
 
@@ -169,7 +163,7 @@ cppGenerator.forBlock['esp32_pwm_write'] = function (block, gen) {
 
   // ESP32: LEDC init hoisted into setup() once per pin —
   //   ledcSetup(channel, 5000 Hz, 8-bit) → duty range 0–255
-  const ch = ledcChannelForPin(pin);
+  const ch = gen.ledcChannelForPin(pin);
   gen.addSetup(
     `ledc_${pin}`,
     `ledcSetup(${ch}, 5000, 8);\nledcAttachPin(${pin}, ${ch});`

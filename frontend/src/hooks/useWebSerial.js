@@ -8,7 +8,6 @@
 //   4. hard-resets the board so the sketch starts immediately.
 // ============================================================
 import { useCallback, useRef, useState } from 'react';
-import { ESPLoader, Transport } from 'esptool-js';
 
 const BAUD = 115200; // DevKit V1 CH340/CP2102 sweet spot; higher rates flake on cheap cables
 
@@ -37,6 +36,9 @@ export function useWebSerial() {
     try {
       setFlashState('connecting');
       setProgress(0);
+
+      // esptool-js is ~200 KB nobody pays for until they actually flash.
+      const { ESPLoader, Transport } = await import('esptool-js');
 
       // Must be called from a user gesture (button click) or Chrome rejects it.
       const port = await navigator.serial.requestPort();

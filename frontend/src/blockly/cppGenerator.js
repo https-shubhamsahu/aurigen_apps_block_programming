@@ -35,7 +35,15 @@ cppGenerator.init = function (workspace) {
   this.setups_ = Object.create(null);   // 'pinMode(16, OUTPUT);'
   this.nameDB_ = new Blockly.Names(this.RESERVED_WORDS_);
   this.nameDB_.setVariableMap(workspace.getVariableMap());
-  this.tmpVarCount_ = 0; // loop counters (i0, i1, …) unique per sketch
+  this.tmpVarCount_ = 0;        // loop counters (i0, i1, …) unique per sketch
+  this.ledcMap_ = new Map();    // ESP32 PWM pin → LEDC channel, per generation
+};
+
+/** Deterministic LEDC channel per pin — resets every generation, so the
+ *  same program always compiles to the same channels. */
+cppGenerator.ledcChannelForPin = function (pin) {
+  if (!this.ledcMap_.has(pin)) this.ledcMap_.set(pin, this.ledcMap_.size % 16);
+  return this.ledcMap_.get(pin);
 };
 
 /** Deduplicated helpers — safe to call from every block instance. */

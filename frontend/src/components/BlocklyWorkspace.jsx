@@ -85,6 +85,11 @@ export default function BlocklyWorkspace({ project, onHome }) {
       setXml(Blockly.Xml.domToText(dom));
       setRev((r) => r + 1);
       setDirty(true);
+      // The program changed → any finished build no longer matches it.
+      // Reset the pipeline so the button compiles fresh instead of
+      // delivering stale firmware. (The cached hex stays for the sim,
+      // flagged as stale there; error toasts stay until dismissed.)
+      setJob((j) => (j.phase === 'ready' ? { phase: 'idle' } : j));
       try {
         setCpp(cppGenerator.workspaceToCode(workspace));
       } catch (e) {
@@ -126,7 +131,7 @@ export default function BlocklyWorkspace({ project, onHome }) {
     if (!dirty || !projectId) return;
     const t = setTimeout(() => saveRef.current(), 2500);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [dirty, xml, title, projectId]);
 
   // ---- Compile: POST → 202 + jobId → poll /status ----------------
@@ -135,6 +140,7 @@ export default function BlocklyWorkspace({ project, onHome }) {
   // resumes the compile automatically after sign-in.
   const compile = useCallback(async () => {
     if (!requireAuth('compile', () => compileRef.current())) return;
+    compileRevRef.current = revRef.current; // firmware ↔ program version tie
     setJob({ phase: 'queued' });
     try {
       const token = await getAccessToken();
@@ -150,46 +156,48 @@ export default function BlocklyWorkspace({ project, onHome }) {
         throw new Error(body.error ?? `Compile service returned ${res.status}`);
       }
       const { jobId } = await res.json();
-      pollStatus(jobId, token);
+
+      // ---- Poll /status until the build settles -----------------
+      clearInterval(pollRef.current);
+      pollRef.current = setInterval(async () => {
+        try {
+          const poll = await fetch(`${API}/api/status/${jobId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const body = await poll.json();
+
+          if (body.state === 'completed') {
+            clearInterval(pollRef.current);
+            setJob({ phase: 'ready', artifacts: body.artifacts });
+            if (board.short === 'uno') {
+              // Cache the hex for the firmware simulator + USB flasher,
+              // stamped with the program revision it was built from.
+              fetch(`${API}${body.artifacts[0].url}`)
+                .then((r) => r.text())
+                .then((hex) => setFirmware({ hex, at: Date.now(), rev: compileRevRef.current }))
+                .catch(() => {});
+            }
+          } else if (body.state === 'failed') {
+            clearInterval(pollRef.current);
+            // compilerOutput carries the arduino-cli stderr for the student.
+            setJob({ phase: 'error', message: body.compilerOutput ?? 'Compilation failed.' });
+          } else {
+            setJob({ phase: 'compiling' });
+          }
+        } catch {
+          clearInterval(pollRef.current);
+          setJob({ phase: 'error', message: 'Lost contact with the compile service.' });
+        }
+      }, POLL_MS);
     } catch (e) {
       setJob({ phase: 'error', message: e.message });
     }
   }, [cpp, board.short, requireAuth]);
   const compileRef = useRef(compile);
   compileRef.current = compile;
-
-  function pollStatus(jobId, token) {
-    clearInterval(pollRef.current);
-    pollRef.current = setInterval(async () => {
-      try {
-        const res = await fetch(`${API}/api/status/${jobId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const body = await res.json();
-
-        if (body.state === 'completed') {
-          clearInterval(pollRef.current);
-          setJob({ phase: 'ready', artifacts: body.artifacts });
-          if (board.short === 'uno') {
-            // Cache the hex for the firmware simulator + USB flasher.
-            fetch(`${API}${body.artifacts[0].url}`)
-              .then((r) => r.text())
-              .then((hex) => setFirmware({ hex, at: Date.now() }))
-              .catch(() => {});
-          }
-        } else if (body.state === 'failed') {
-          clearInterval(pollRef.current);
-          // compilerOutput carries the arduino-cli stderr for the student.
-          setJob({ phase: 'error', message: body.compilerOutput ?? 'Compilation failed.' });
-        } else {
-          setJob({ phase: 'compiling' });
-        }
-      } catch {
-        clearInterval(pollRef.current);
-        setJob({ phase: 'error', message: 'Lost contact with the compile service.' });
-      }
-    }, POLL_MS);
-  }
+  const revRef = useRef(0);
+  revRef.current = rev;
+  const compileRevRef = useRef(0);
 
   // ---- Deliver: real USB programming for BOTH boards ---------------
   //  * ESP32 → esptool-js (four flash images)
@@ -212,23 +220,35 @@ export default function BlocklyWorkspace({ project, onHome }) {
   }
 
   async function deliver() {
-    if (board.flashMethod === 'hex') {
-      if (!avrSupported) return downloadHexFile();
-      try {
-        await flashHex(await getUnoHex());
-      } catch (e) {
-        // Keep the artifacts so “save .hex instead” still works.
-        setJob({ phase: 'error', message: `${e.message}`, artifacts: job.artifacts });
+    try {
+      if (board.flashMethod === 'hex') {
+        if (!avrSupported) return await downloadHexFile();
+        try {
+          await flashHex(await getUnoHex());
+        } catch (e) {
+          // Keep the artifacts so “save .hex instead” still works.
+          setJob({ phase: 'error', message: `${e.message}`, artifacts: job.artifacts });
+        }
+        return;
       }
-      return;
+      const files = await Promise.all(
+        job.artifacts.map(async ({ offset, url }) => {
+          const res = await fetch(`${API}${url}`);
+          if (!res.ok) throw new Error('expired');
+          return { offset, data: await res.arrayBuffer() };
+        })
+      );
+      await flash(files);
+    } catch (e) {
+      // Builds live ~10 minutes on the server; after that, recompile.
+      const expired = e.message === 'expired' || /404|Failed to fetch/i.test(e.message);
+      setJob({
+        phase: 'error',
+        message: expired
+          ? 'That build has expired (builds are kept for 10 minutes). Hit Download to compile a fresh one.'
+          : e.message,
+      });
     }
-    const files = await Promise.all(
-      job.artifacts.map(async ({ offset, url }) => {
-        const buf = await (await fetch(`${API}${url}`)).arrayBuffer();
-        return { offset, data: buf };
-      })
-    );
-    await flash(files);
   }
 
   async function save() {
@@ -321,7 +341,8 @@ export default function BlocklyWorkspace({ project, onHome }) {
       <div style={S.main}>
         {/* ---- left: simulator + download dock (collapsible) ---- */}
         <aside style={{ ...S.side, ...(simOpen ? {} : S.sideClosed) }}>
-          <Simulator wsRef={wsRef} rev={rev} board={board} firmware={firmware} />
+          <Simulator wsRef={wsRef} rev={rev} board={board} firmware={firmware}
+                     firmwareStale={firmware != null && rev > firmware.rev} />
 
           <div style={S.dock}>
             <button

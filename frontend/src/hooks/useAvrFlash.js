@@ -46,7 +46,7 @@ export function useAvrFlash() {
       const rx = []; // byte queue fed by a background pump
 
       let pumping = true;
-      const pump = (async () => {
+      (async () => { // background pump: reader → rx byte queue
         try {
           while (pumping) {
             const { value, done } = await reader.read();
