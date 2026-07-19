@@ -19,7 +19,11 @@ services:
     restart: unless-stopped
     env_file: ./backend/.env
     environment:
+      # Override .env's bare-node values — api and worker are separate
+      # containers, so artifacts must live on the shared volume.
       REDIS_URL: redis://redis:6379
+      ARTIFACT_DIR: /data/artifacts
+      JOB_DIR: /data/jobs
     ports:
       - "4000:4000"
     depends_on:
@@ -34,6 +38,8 @@ services:
     env_file: ./backend/.env
     environment:
       REDIS_URL: redis://redis:6379
+      ARTIFACT_DIR: /data/artifacts
+      JOB_DIR: /data/jobs
     depends_on:
       - redis
     volumes:

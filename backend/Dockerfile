@@ -1,9 +1,10 @@
 # Compile worker/API image — bundles arduino-cli + both board cores so the
 # container is self-sufficient (no host-level arduino-cli install needed).
-FROM node:20-bookworm-slim
+# supabase-js's realtime client needs Node 22+ (native WebSocket) — see install.sh.
+FROM node:22-bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      curl ca-certificates \
+      curl ca-certificates python3 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \

@@ -48,6 +48,16 @@ export async function signOut() {
   if (error) throw error;
 }
 
+/** Re-sends the signup confirmation email (e.g. after the first one expired or was lost). */
+export async function resendConfirmation(email) {
+  const { error } = await supabase.auth.resend({
+    type: 'signup',
+    email,
+    options: { emailRedirectTo: window.location.origin },
+  });
+  if (error) throw normalizeAuthError(error);
+}
+
 /** Emails a recovery link; the link lands back on the app with a recovery session. */
 export async function sendPasswordReset(email) {
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -72,6 +82,7 @@ function normalizeAuthError(error) {
   const table = {
     'Invalid login credentials': 'Email or password is incorrect.',
     'User already registered': 'An account with this email already exists.',
+    'Email not confirmed': 'Please confirm your email first — check your inbox for the link.',
   };
   return new Error(table[error.message] ?? error.message);
 }

@@ -7,7 +7,7 @@
 // ============================================================
 import { useEffect, useState } from 'react';
 import { useAuth } from './AuthProvider';
-import { signIn, signUp, sendPasswordReset, updatePassword } from '../lib/supabaseClient';
+import { signIn, signUp, sendPasswordReset, updatePassword, resendConfirmation } from '../lib/supabaseClient';
 import ModalShell from '../design/ModalShell';
 import Spinner from '../design/Spinner';
 import { color, space, radius, font, shadow, motion } from '../design/tokens';
@@ -30,6 +30,8 @@ export default function AuthModal({ reason = 'generic', onClose }) {
   const [touched, setTouched] = useState(false);
   const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [unconfirmedEmail, setUnconfirmedEmail] = useState(null);
+  const [resending, setResending] = useState(false);
 
   // Once a session exists (and we're not mid-recovery), the job is done.
   useEffect(() => {
@@ -50,6 +52,7 @@ export default function AuthModal({ reason = 'generic', onClose }) {
     setTouched(true);
     if (!canSubmit) return;
     setNotice(null);
+    setUnconfirmedEmail(null);
     setBusy(true);
     try {
       if (mode === 'signin') {
@@ -68,14 +71,29 @@ export default function AuthModal({ reason = 'generic', onClose }) {
       }
     } catch (e) {
       setNotice({ ok: false, text: e.message });
+      if (mode === 'signin' && e.message.startsWith('Please confirm your email')) setUnconfirmedEmail(email);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function resend() {
+    setResending(true);
+    try {
+      await resendConfirmation(unconfirmedEmail);
+      setNotice({ ok: true, text: 'Confirmation email resent — check your inbox.' });
+      setUnconfirmedEmail(null);
+    } catch (e) {
+      setNotice({ ok: false, text: e.message });
+    } finally {
+      setResending(false);
     }
   }
 
   function switchMode(next) {
     setMode(next);
     setNotice(null);
+    setUnconfirmedEmail(null);
     setTouched(false);
   }
 
@@ -136,6 +154,12 @@ export default function AuthModal({ reason = 'generic', onClose }) {
           <div style={{ ...S.notice, ...(notice.ok ? S.noticeOk : S.noticeErr) }} role={notice.ok ? 'status' : 'alert'}>
             {notice.text}
           </div>
+        )}
+
+        {unconfirmedEmail && (
+          <button type="button" style={S.link} onClick={resend} disabled={resending}>
+            {resending ? 'Resending…' : 'Resend confirmation email'}
+          </button>
         )}
 
         <button type="submit" style={{ ...S.cta, opacity: busy ? 0.75 : 1 }} disabled={busy}>
