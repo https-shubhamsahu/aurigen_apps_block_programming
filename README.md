@@ -1,6 +1,16 @@
 # Aurigen — Browser-Based ESP32 Visual Programming Platform
 
-Blockly → C++ → cloud compile (arduino-cli) → Web Serial flash. No local toolchain.
+Blockly → C++ → cloud compile (arduino-cli) → Web Serial flash. No local toolchain required.
+
+![React](https://img.shields.io/badge/React-Vite-61DAFB?style=flat-square&logo=react&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-Express-339933?style=flat-square&logo=node.js&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-Auth_%2B_Postgres-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-BullMQ-DC382D?style=flat-square&logo=redis&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
+
+## Overview
+
+Aurigen lets students and hobbyists program an ESP32 (or Arduino Uno R3) entirely from the browser: drag Blockly blocks, watch it run in a live simulator, then flash the real board over Web Serial — with zero local toolchain install. Compilation happens in the cloud via `arduino-cli`, queued through Redis/BullMQ and gated behind Supabase auth + Row-Level Security.
 
 ```
 ┌────────────┐   XML/C++    ┌──────────────┐   BullMQ    ┌─────────────┐
@@ -12,9 +22,30 @@ Blockly → C++ → cloud compile (arduino-cli) → Web Serial flash. No local t
   ESP32 DevKit V1              Supabase (Auth + Postgres + RLS)
 ```
 
-## 1. Scaffolding
+## Features
+
+- **Visual programming** — Blockly-based block editor that generates real C++ (`blockly/cppGenerator.js`), board-aware (`blockly/esp32Blocks.js`)
+- **Product-first onboarding** — nothing is auth-gated up front; guests build, simulate, and save to `localStorage`, with cloud migration on first sign-in (`auth/AuthProvider.jsx`)
+- **Dual simulation engines** — an instant block interpreter for live feedback, and a firmware-accurate engine (`avr8js`, the core Wokwi builds on) executing the real compiled `.hex` on a simulated ATmega328P
+- **Real USB flashing, no installs** — ESP32 via `esptool-js` (Web Serial), Arduino Uno via a hand-rolled STK500v1 implementation straight to the optiboot bootloader
+- **Cloud compilation pipeline** — Express API + BullMQ-queued `arduino-cli` worker, JWT-verified against Supabase
+- **Deterministic flashing** — exports all four ESP32 flash artifacts (bootloader, partitions, boot_app0, app) so a factory-fresh board never boot-loops
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React (Vite), Blockly, esptool-js |
+| Backend | Node.js, Express, BullMQ |
+| Compile worker | `arduino-cli` (ESP32 + AVR cores) |
+| Queue | Redis |
+| Auth / DB | Supabase (Auth, Postgres, Row-Level Security) |
+| Simulation | Custom interpreter + avr8js (AVR firmware simulation) |
+
+## Getting Started
 
 ### Frontend
+
 ```bash
 npm create vite@latest aurigen-frontend -- --template react
 cd aurigen-frontend
@@ -23,7 +54,8 @@ cp .env.example .env   # fill in VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY / VI
 npm run dev
 ```
 
-### Backend (on the VPS)
+### Backend (on a VPS)
+
 ```bash
 # Redis
 sudo apt install redis-server && sudo systemctl enable --now redis-server
@@ -43,20 +75,16 @@ cd backend
 npm install
 cp .env.example .env   # fill in secrets
 node server.js         # API (use pm2/systemd in production)
-node worker.js         # compile worker (separate process)
+node worker.js          # compile worker (separate process)
 ```
 
 ### Database
+
 Apply `supabase/migrations/001_init.sql` in the Supabase SQL editor (or `supabase db push`).
 
-## 1a. Free hosting for the backend (no VPS bill)
+### Free hosting for the backend (no VPS bill)
 
-The commands above assume a rented VPS. If you don't want to pay for one yet,
-two paths get the compile service running at **$0**:
-
-### Option A — run it on your own machine, right now (Docker)
-
-No signup, no card, works immediately if Docker is installed:
+**Option A — run it locally with Docker** (no signup, no card):
 
 ```bash
 cp backend/.env.example backend/.env   # fill in SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
@@ -64,113 +92,35 @@ docker compose up -d --build           # builds arduino-cli + both cores into th
 docker compose logs -f                 # watch server.js + worker.js
 ```
 
-This runs Redis + the API + the worker in containers (see `docker-compose.yml`,
-`backend/Dockerfile`). `VITE_COMPILE_API` on the frontend should point at
-`http://localhost:4000` for local testing.
-
-To let people outside your LAN reach it, add a **Cloudflare Tunnel** (free,
-no account payment, gives you a real HTTPS URL without port-forwarding):
+Runs Redis + the API + the worker in containers (`docker-compose.yml`, `backend/Dockerfile`). Point `VITE_COMPILE_API` at `http://localhost:4000` for local testing, or expose it via a free [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/get-started/):
 
 ```bash
-# https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/get-started/
 winget install --id Cloudflare.cloudflared   # or: choco install cloudflared
 cloudflared tunnel --url http://localhost:4000
 ```
 
-That prints a `https://<random>.trycloudflare.com` URL immediately — set it as
-`VITE_COMPILE_API` in the frontend and you're live. Trade-off: the backend is
-only reachable while your PC is on and the tunnel is running. Good for testing,
-demos, and small-scale real use; not for guaranteed uptime.
+That prints an `https://<random>.trycloudflare.com` URL immediately — set it as `VITE_COMPILE_API` in the frontend. Trade-off: only reachable while your machine and tunnel are running — fine for demos, not for guaranteed uptime. For a stable URL on your own domain, use a *named* tunnel (`cloudflared tunnel create` + `cloudflared tunnel route dns`) instead of the random one.
 
-For a **persistent free URL** on your own domain instead of a random
-`trycloudflare.com` one, use a *named* tunnel (`cloudflared tunnel create`,
-`cloudflared tunnel route dns`) — still free, just a few more one-time steps
-in Cloudflare's dashboard.
+**Option B — Oracle Cloud "Always Free" VPS** (a real, non-expiring free tier — 4 vCPU / 24 GB RAM ARM Ampere shape):
 
-### Option B — a real always-free VPS (Oracle Cloud "Always Free")
-
-Unlike AWS/GCP's 12-month trials, Oracle's Always Free tier does not expire:
-1 GB new tier VM or the ARM Ampere shape at **4 vCPU / 24 GB RAM**, free
-forever. Requires a card on file for identity verification, but the free-tier
-resources are never billed as long as you stay within them.
-
-1. Sign up at [cloud.oracle.com](https://cloud.oracle.com) (free tier).
-2. Create a Compute instance → shape **VM.Standard.A1.Flex** (Ampere/ARM,
-   Always Free) → image **Ubuntu 22.04** → add your SSH key.
-3. In the instance's subnet **Security List**, add an ingress rule for
-   TCP port 443 (and 80, for the Let's Encrypt HTTP challenge).
-4. SSH in, then run the provisioning script committed in this repo:
+1. Sign up at [cloud.oracle.com](https://cloud.oracle.com) and create a Compute instance: shape **VM.Standard.A1.Flex**, image **Ubuntu 22.04**, your SSH key.
+2. Open ingress on TCP 443 (and 80 for Let's Encrypt) in the instance's Security List.
+3. SSH in and run the provisioning script committed in this repo:
    ```bash
    git clone <your-repo-url> aurigen && cd aurigen/backend
    chmod +x install.sh && ./install.sh
    ```
-   This installs Redis, Node 20, arduino-cli + the ESP32 and AVR cores,
-   `npm install`s the backend, and starts `server.js` + `worker.js` under
-   **pm2** (`ecosystem.config.js`), surviving reboots.
-5. Edit `backend/.env` (the script copies `.env.example` for you) with your
-   real `SUPABASE_SERVICE_ROLE_KEY` and `CORS_ORIGIN`, then `pm2 restart all`.
-6. Point a subdomain's DNS at the instance's public IP, then front it with
-   Caddy for automatic HTTPS (config committed at `Caddyfile`):
-   ```bash
-   sudo apt install caddy   # see comment at the top of Caddyfile for the repo setup
-   sudo cp Caddyfile /etc/caddy/Caddyfile   # edit api.yourdomain.com first
-   sudo systemctl reload caddy
-   ```
+   Installs Redis, Node 20, `arduino-cli` + ESP32/AVR cores, `npm install`s the backend, and starts `server.js` + `worker.js` under **pm2** (`ecosystem.config.js`), surviving reboots.
+4. Edit `backend/.env` with your real `SUPABASE_SERVICE_ROLE_KEY` and `CORS_ORIGIN`, then `pm2 restart all`.
+5. Point a subdomain at the instance's public IP and front it with Caddy for automatic HTTPS (`Caddyfile` included), or skip a domain entirely and use a Cloudflare Tunnel (systemd unit template at `cloudflared.service.example`) for real HTTPS with no port exposure.
 
-**No domain yet?** Skip step 6 (Caddy) and use a Cloudflare Tunnel instead —
-it gives real HTTPS with no domain purchase and no port 80/443 exposure:
-```bash
-curl -fsSL https://pkg.cloudflare.com/cloudflared-linux-arm64 -o cloudflared  # Oracle A1 is ARM
-chmod +x cloudflared && sudo mv cloudflared /usr/local/bin/
-sudo cp cloudflared.service.example /etc/systemd/system/cloudflared.service
-sudo systemctl daemon-reload && sudo systemctl enable --now cloudflared
-sudo journalctl -u cloudflared -f   # prints your https://<random>.trycloudflare.com URL
-```
-Set that URL as `VITE_COMPILE_API` in the frontend. It stays stable as long as
-the service keeps running (survives reboots via systemd); it only changes if
-the tunnel process itself restarts. For a URL that never changes, add a free
-domain later — e.g. a [js.org](https://js.org) subdomain for open-source JS
-projects, or a free Namecheap `.me` domain via the
-[GitHub Student Developer Pack](https://education.github.com/pack) if you
-qualify — and switch to a Cloudflare *named* tunnel.
+## Design Notes
 
-## 2. Flashing note (deviation from spec, on purpose)
+**Flashing deviation (intentional):** the spec calls for flashing a single app binary at `0x10000`, which only works if the board already has a compatible bootloader and partition table. A factory-fresh or erased DevKit would boot-loop. The worker instead exports all four artifacts (bootloader `@0x1000`, partitions `@0x8000`, boot_app0 `@0xE000`, app `@0x10000`) and the frontend flashes them together — deterministic first-boot at the cost of ~3s extra flash time.
 
-The spec asks to flash a single app binary at `0x10000`. That only works on a board
-that already has a compatible bootloader + partition table in flash. A factory-fresh
-or previously-erased DevKit will boot-loop. The worker therefore exports **all four
-artifacts** (`bootloader @ 0x1000`, `partitions @ 0x8000`, `boot_app0 @ 0xE000`,
-`app @ 0x10000`) and the frontend flashes them together. This makes first-day
-classroom experience deterministic at the cost of ~3 s extra flash time.
+**Simulation contract:** `components/Simulator.jsx` drives whichever engine is selected; both emit the same `{ pins: {name: 0–255}, serial, running, txCount }` shape, so adding a board is just a `boards/boards.js` entry + SVG, and adding an engine is one class honoring that contract.
 
-## 3. Architecture
-
-**Product-first onboarding.** Nothing is auth-gated at the door: guests land in
-the full IDE, build, simulate, and save to `localStorage` (`lib/localProjects.js`).
-`auth/AuthProvider.jsx` exposes `requireAuth(reason, resume)` — the only feature
-that raises the sign-in modal is the cloud compiler, and the pending action
-resumes automatically after sign-in. Guest projects migrate into the account on
-first sign-in.
-
-**Two simulation engines, one contract.** `components/Simulator.jsx` drives
-whichever engine is selected; both emit the same
-`{ pins: {name: 0–255}, serial, running, txCount }` shape:
-
-| engine | file | what it is |
-|---|---|---|
-| ⚡ Blocks | `simulator/interpreter.js` | Instant block interpreter — live feedback while editing, all boards |
-| 🔬 Firmware | `simulator/engines/avrEngine.js` | [avr8js](https://github.com/wokwi/avr8js) (MIT, the core Wokwi builds on) executing the **real compiled .hex** on a simulated ATmega328P — timers, USART serial, ADC, and *measured* PWM duty (cycle-integrated, not guessed) |
-
-Adding a board = a `boards/boards.js` entry + an SVG render; adding an engine =
-one class honoring the contract above.
-
-**Real USB programming for both boards, no installs.**
-`hooks/useWebSerial.js` (esptool-js, ESP32) and `hooks/useAvrFlash.js`
-(hand-rolled STK500v1 straight to the Uno's optiboot bootloader — DTR
-auto-reset, signature check, 128-byte page writes). Browsers without Web
-Serial fall back to a `.hex` download.
-
-## 4. Repo layout
+## Project Structure
 
 ```
 frontend/src/auth/AuthProvider.jsx     Session context + requireAuth + guest→cloud migration
@@ -188,3 +138,11 @@ backend/server.js                      Express API + BullMQ producer + rate limi
 backend/worker.js                      BullMQ consumer → arduino-cli
 supabase/migrations/001_init.sql       Tables + RLS
 ```
+
+## Contributing
+
+Fork the repository, create a feature branch, and open a pull request. New board support should follow the existing `boards/boards.js` + simulator-engine contract described above.
+
+## License
+
+No license file is currently present in this repository.
