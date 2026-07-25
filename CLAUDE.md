@@ -61,16 +61,6 @@ sign-in modal (`AuthModal.jsx`) if needed and resumes the pending action
 automatically after sign-in. On first sign-in, guest projects migrate into the
 account.
 
-**AI program schema is a safety boundary, not free-form generation.**
-`frontend/src/ai/program.js` defines a small whitelisted JSON dialect (statement
-forms like `digital_write`, `pwm_write`, `repeat`, `if`; value forms like
-`math`, `compare`, `analog_read`). An AI assistant emits this JSON — never
-Blockly XML directly — and `program.js` validates it (whitelisted ops,
-board-legal pins, statement count and nesting-depth caps) before deterministically
-compiling it to Blockly XML. A malformed/oversized program is rejected with a
-reason; it can never load garbage into a student's workspace. Read the header
-comment in that file before extending the schema.
-
 **Two simulation engines share one contract.** `components/Simulator.jsx` drives
 whichever engine is selected; both emit `{ pins: {name: 0-255}, serial, running,
 txCount }`:
@@ -87,7 +77,7 @@ The concrete instance-method contract (see `avrEngine.js` header) is
 `.start() .stop() .setDigitalInput(pin, 0|1) .setAnalogInput(pin, raw)
 .clearSerial()`, constructed as `new AvrRunner(hexText, board, onUpdate)`.
 The firmware engine runs on the main thread with a 6ms/slice budget by
-design (not yet Worker-offloaded) — see `docs/AUDIT.md` for this and other
+design (not yet Worker-offloaded) — see `HANDOVER.md` for this and other
 open/deliberate trade-offs.
 
 **Real USB flashing, no drivers/installs.** `hooks/useWebSerial.js` wraps
@@ -125,7 +115,6 @@ frontend/src/auth/AuthModal.jsx             On-demand sign-in modal (never a wal
 frontend/src/lib/localProjects.js           Guest persistence (localStorage, cloud-shaped rows)
 frontend/src/lib/supabaseClient.js          Supabase client + auth/project helpers
 frontend/src/lib/share.js                   Share-by-URL codec
-frontend/src/ai/program.js                  AI JSON program schema, validator, → Blockly XML compiler
 frontend/src/blockly/cppGenerator.js         Custom Blockly → C++ generator core
 frontend/src/blockly/esp32Blocks.js         Board-aware block defs + generators
 frontend/src/simulator/interpreter.js       Blocks engine (instant, all boards)
@@ -138,8 +127,41 @@ frontend/src/design/                        Design tokens, ThemeToggle, shared s
 backend/server.js                           Express API: JWT auth, rate limit, queue producer, artifact serving
 backend/worker.js                           BullMQ consumer → arduino-cli
 supabase/migrations/001_init.sql            Tables + RLS
-docs/AUDIT.md                               Point-in-time audit log — open items and deliberate trade-offs
+HANDOVER.md                                 Live deploy state, ops runbook, open work
 ```
+
+## Deployment topology (read before touching env or deploy)
+
+The three tiers deploy independently and are wired together **only** by env vars:
+
+| Tier | Where it runs | Wired by |
+|---|---|---|
+| Frontend | Vercel, auto-deploys on push to `main` (`vercel.json` builds `frontend/`) | `frontend/.env.production` — **committed**, baked into the bundle at build time |
+| Backend | Docker Compose on the maintainer's machine, exposed via a Cloudflare quick tunnel | `backend/.env` — **gitignored**, holds the service-role key |
+| Database | Supabase cloud (project `voxuhqnntdaohkcyevom`) | — |
+
+Consequences that bite:
+- **`VITE_COMPILE_API` is baked in at build time, not read at runtime.** Changing
+  the backend URL requires editing `frontend/.env.production`, committing, and
+  pushing — a redeploy, not a restart.
+- **Quick-tunnel URLs are ephemeral.** Every `cloudflared` restart mints a new
+  hostname, which invalidates the deployed frontend until you push the new URL.
+  This is the single biggest operational weakness — see `HANDOVER.md`.
+- **`CORS_ORIGIN` in `backend/.env` must list every origin that calls the API**
+  (all three Vercel domains + `http://localhost:5173`). A missing origin fails
+  as an opaque browser CORS error, not a server-side log line.
+- **Compose caches `env_file` at container-create time.** After editing
+  `backend/.env`, `docker compose restart` is *not* enough — you need
+  `docker compose up -d --force-recreate <service>`, or the container keeps
+  serving the old values.
+- The Docker image pins **Node 22** (supabase-js realtime needs native
+  WebSocket) and installs **python3** (the ESP32 core's build scripts shell out
+  to it). Both are load-bearing; dropping either breaks the compile path at
+  runtime, not at build time.
+- `ARTIFACT_DIR`/`JOB_DIR` are overridden in `docker-compose.yml` to point at
+  the shared `artifacts` volume. The values in `backend/.env` target the
+  bare-node layout; if the compose overrides are removed, the worker writes
+  binaries the API cannot serve and downloads 404 while the job reports success.
 
 ## Conventions worth knowing before editing
 
@@ -153,3 +175,7 @@ docs/AUDIT.md                               Point-in-time audit log — open ite
 - `backend/server.js` loads `.env` from the module's own path, not `cwd`, so it
   works the same under pm2/systemd and bare `node`. Under Docker no `.env`
   exists — values come from compose `env_file`.
+- `frontend/src/ai/` is **untracked, unwired WIP** — nothing imports it and 2 of
+  its 7 tests fail (XML escaping, nested control flow). It is deliberately kept
+  out of commits so CI stays green. Don't treat it as live architecture; either
+  finish it (fix the escaping bug first) or delete it.
