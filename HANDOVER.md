@@ -131,12 +131,52 @@ After editing `backend/.env`, always `docker compose up -d --force-recreate api`
    both already `Enabled`. This is missing files, not a disabled feature — a
    distinction that costs an hour if you get it wrong.
 
-   The fix is to reinstall the WSL package (Settings → Apps → Windows Subsystem
-   for Linux → Advanced options → **Repair**, or reinstall from the Microsoft
-   Store, or `Add-AppxPackage` the official MSIX from
-   [github.com/microsoft/WSL/releases](https://github.com/microsoft/WSL/releases)).
-   `winget` is not installed on this machine. Verify with `wsl --status` before
-   starting Docker Desktop.
+   **Fix that worked: update WSL from the Microsoft Store** —
+   `ms-windows-store://pdp/?ProductId=9P9TQF7MRM4R`, which pulled 2.6.3.0 →
+   2.7.11.0 and restored all 38 files. Verify with `wsl --version`.
+
+   Two dead ends worth skipping next time:
+   - **WSL has no entry in Settings → Installed apps.** Its manifest declares
+     `AppListEntry: none`, so the usual Advanced options → Repair route does not
+     exist for it. Don't hunt for it.
+   - **`Reset-AppxPackage` does not help.** It ran cleanly and restored nothing —
+     it resets app *state*, not deleted payload files. Only a genuine reinstall
+     re-downloads them.
+
+   Note that `lxss\wslclient.dll` is still absent afterward and that is fine:
+   WSL 2.7.x replaced it with `libwsl.dll`. Test the behaviour (`wsl --version`),
+   not that one file — chasing it is what sent this diagnosis down the wrong path
+   twice.
+
+   `winget` is not installed on this machine, so the CLI reinstall route is
+   unavailable without installing it first.
+
+   **Aftermath: Docker then crashed on startup twice more, for the same
+   underlying reason.** Repairing WSL left Docker's Unix-socket files as
+   orphaned reparse points that Windows cannot delete — `Remove-Item` fails on
+   them with "The file cannot be accessed by the system", and Docker aborts
+   because it cannot clean up its own socket before rebinding:
+
+   ```
+   starting services: initializing Inference manager: listening on
+     unix://.../Docker/run/dockerInference: remove ...: The file cannot be accessed
+   starting services: initializing Secrets Engine: listening on
+     unix://.../docker-secrets-engine/engine.sock: remove ...: The file cannot be accessed
+   ```
+
+   Two fixes, both needed:
+   1. **Rename the containing directory aside** — individual files cannot be
+      deleted, but the parent folder renames fine and Docker recreates it:
+      `%LOCALAPPDATA%\Docker\run` and `%LOCALAPPDATA%\docker-secrets-engine`.
+   2. **Set `"EnableDockerAI": false`** in `%APPDATA%\Docker\settings-store.json`
+      (with Docker stopped, or it rewrites the file on exit). Docker AI /
+      Model Runner is unused here and its Inference manager was one of the
+      crashing services.
+
+   **Do not click "Reset to factory defaults"** on that dialog. It does not fix
+   this — it re-enables `EnableDockerAI`, so the crash returns — and it is one
+   click away from destroying every image and volume. The targeted fixes above
+   preserved all of them.
 
    Windows 11 **Home** has no Hyper-V backend, so WSL2 is Docker's only engine —
    there is no way around this. The upside: `docker_data.vhdx` (78 GB, holding
