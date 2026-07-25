@@ -97,13 +97,27 @@ After editing `backend/.env`, always `docker compose up -d --force-recreate api`
    implementation is complete (`hooks/useAvrFlash.js`) and follows the standard
    optiboot handshake, but no real board has ever been flashed with it. ESP32
    flashing *is* verified on-air. Needs a real Uno on USB.
-5. **`frontend/src/ai/` is unfinished and uncommitted.** Nothing imports it; 2 of
-   7 tests fail. The XML-escaping test failure is the interesting one — a
-   `</field><script>` payload survives into generated C++, which is precisely the
-   injection the module exists to prevent. Fix that before wiring it up, or
-   delete the directory.
+5. **Wire up `frontend/src/ai/` (or delete it).** The module is now correct and
+   fully tested, but nothing imports it — it is dead code until a UI calls
+   `compileProgram`. See §5 for what was fixed.
 6. **Enable Supabase leaked-password protection** — dashboard → Authentication →
    Sign In / Providers → Passwords. One toggle.
+7. **Repair WSL so Docker can start.** Docker Desktop currently fails at launch:
+   the WSL Store package is installed, but the System32 stub is orphaned —
+   `wsl.exe` is present while `C:\Windows\System32\lxss\wslclient.dll` is
+   missing, so every `wsl.exe` call dies with "The system cannot find the file
+   specified." Windows 11 **Home** has no Hyper-V backend to fall back to, so
+   WSL2 must be fixed for the backend to run at all. In an **elevated**
+   PowerShell:
+
+   ```powershell
+   dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+   dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+   # reboot, then:
+   wsl --update
+   ```
+
+   Verify with `wsl --status` before starting Docker Desktop.
 
 ### Known deliberate trade-offs (not bugs — don't "fix" without cause)
 
@@ -124,7 +138,28 @@ After editing `backend/.env`, always `docker compose up -d --force-recreate api`
 
 ---
 
-## 4. History worth knowing
+## 4. Correction to an earlier claim in this file
+
+An earlier revision listed the AI module's XML-escaping test failure as a live
+injection vulnerability. **That was wrong**, and the mistake is worth recording
+because the test invited it.
+
+The payload `</field><script>alert(1)</script>` *is* correctly escaped — the
+generated XML contains `&lt;script&gt;` inside a single `<field>`, loads as
+exactly two blocks (`esp32_serial_print` + `text`), and never breaks out. What
+the old test actually asserted was that the payload must not appear in the
+generated C++ — but it appears there as a **string literal printed over a serial
+cable**, which is inert. There is no DOM at the other end of a USB port. The
+assertion demanded that a student's legitimate string be silently mangled.
+
+The test now asserts the property that actually matters: the XML carries no live
+markup, the block graph has exactly the expected shape, and the field round-trips
+byte-for-byte into one `Serial.println` argument.
+
+Lesson: for an escaping boundary, assert on the *structure produced*, not on
+whether scary-looking characters survive to the far end.
+
+## 5. History worth knowing
 
 The 2026-07-08 audit found and fixed 8 issues, most notably: stale-firmware
 delivery after edits (the Download button stayed "ready" against an outdated
@@ -147,3 +182,11 @@ The lesson worth carrying: **in this stack, a compile failure usually is not an
 auth failure**, even when the error says "Invalid or expired session." Check the
 container's actual env (`docker exec ... node -e "process.env..."`) before
 debugging the token.
+
+Most recently, `frontend/src/ai/` was repaired and committed. It had a real
+structural bug: `chain()` spliced `<next>` at the *first* `</block>`, which for
+any block with nested children belongs to a descendant, so multi-statement
+programs containing an `if`/`repeat`/value-carrying block attached the rest of
+the chain to something with no next connection and Blockly refused the whole
+workspace. It now anchors on the block's own closing tag. The module is correct
+and covered by 7 tests, but still unwired — see §3 item 5.

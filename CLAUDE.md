@@ -175,7 +175,13 @@ Consequences that bite:
 - `backend/server.js` loads `.env` from the module's own path, not `cwd`, so it
   works the same under pm2/systemd and bare `node`. Under Docker no `.env`
   exists — values come from compose `env_file`.
-- `frontend/src/ai/` is **untracked, unwired WIP** — nothing imports it and 2 of
-  its 7 tests fail (XML escaping, nested control flow). It is deliberately kept
-  out of commits so CI stays green. Don't treat it as live architecture; either
-  finish it (fix the escaping bug first) or delete it.
+- `frontend/src/ai/program.js` is the **safety boundary between a model and the
+  workspace**: an AI emits a small whitelisted JSON dialect (validated for legal
+  ops, board-legal pins, statement-count and nesting caps) which is then compiled
+  to Blockly XML deterministically — the model never writes XML itself. Read the
+  header comment before extending the schema. It is correct and covered by tests
+  but **not yet wired into any UI**; nothing imports it today.
+- When emitting Blockly XML by hand, anchor structural edits on the *last*
+  `</block>`, not the first — a block with nested children closes them first, so
+  the first closing tag belongs to a descendant. See `spliceNext` in
+  `ai/program.js`.
