@@ -28,8 +28,15 @@ if [ ! -f /swapfile ] && [ "$(free -m | awk '/^Mem:/{print $2}')" -lt 4000 ]; th
 fi
 
 # ---- 1. System packages ----------------------------------------------
+# python3 is load-bearing, not incidental: the ESP32 core's build scripts shell
+# out to it, and without it every ESP32 compile fails at runtime with
+#   Error during build: exec: "python3": executable file not found in $PATH
+# while the API still reports the job as queued-then-failed. Ubuntu server
+# images usually ship it, but minimal cloud images do not always — install it
+# explicitly rather than inherit it by luck. (This exact gap broke the Docker
+# image; see backend/Dockerfile.)
 sudo apt-get update -y
-sudo apt-get install -y redis-server curl git build-essential
+sudo apt-get install -y redis-server curl git build-essential python3
 
 sudo systemctl enable --now redis-server
 

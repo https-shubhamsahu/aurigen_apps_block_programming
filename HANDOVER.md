@@ -38,16 +38,62 @@ through a Cloudflare *quick* tunnel. That means:
   the normal consequence of quick tunnels.
 
 **Fixing this properly is the single highest-value piece of remaining work.**
-Two documented paths, both free, config already committed:
-
-- **Cloudflare named tunnel** — stable hostname on a domain you own. Needs a
-  Cloudflare account: `cloudflared tunnel create` + `cloudflared tunnel route dns`.
-  Systemd unit template at `cloudflared.service.example`.
-- **Oracle Cloud Always Free VPS** — a real always-on host (4 vCPU / 24 GB ARM,
-  non-expiring). Provisioning script at `backend/install.sh` (installs Redis,
-  Node 22, arduino-cli + both cores, pm2); HTTPS via the committed `Caddyfile`.
-
 Until then, treat "the site is up" and "compiling works" as two separate facts.
+
+### Decision made: move to a real host, skip the named tunnel
+
+A Cloudflare **named tunnel** was considered and deliberately rejected. It fixes
+only half the problem: you get a stable hostname, but the backend still lives on
+a personal PC, so compiles still die when that machine sleeps. Since a real host
+hands you a stable public URL *directly*, the tunnel becomes redundant the moment
+you move — doing both is wasted work. Skip to the VPS.
+
+### Deployment plan (Oracle Cloud Always Free)
+
+Everything below is already committed and verified as far as it can be without
+the account. **Provisioning the instance requires the maintainer's own Oracle
+signup — a card is needed for identity verification, though Always Free
+resources are never billed.**
+
+1. **Create the instance.** [cloud.oracle.com](https://cloud.oracle.com) → Compute
+   → shape **VM.Standard.A1.Flex** (Ampere ARM, Always Free, up to 4 vCPU /
+   24 GB) → image **Ubuntu 22.04** → attach your SSH key.
+
+   ARM is safe here: the ESP32 package index publishes `aarch64-linux-gnu`
+   toolchains, so both cores compile natively. (Verified against
+   `package_esp32_index.json` — do not assume this for other Arduino cores.)
+
+2. **Open the firewall.** In the instance's subnet **Security List**, add ingress
+   for TCP **443** and **80** (80 is required for the Let's Encrypt HTTP-01
+   challenge). Oracle's default security list blocks both.
+
+3. **Provision.**
+   ```bash
+   git clone https://github.com/https-shubhamsahu/aurigen_apps_block_programming.git aurigen
+   cd aurigen/backend && chmod +x install.sh && ./install.sh
+   ```
+   Installs Redis, Node 22, python3, arduino-cli + both cores, and starts
+   `server.js` + `worker.js` under pm2 with reboot persistence.
+
+4. **Fill in secrets.** Edit `backend/.env` — `SUPABASE_SERVICE_ROLE_KEY` and
+   `CORS_ORIGIN` (must list every Vercel domain; see §1). Then `pm2 restart all`.
+
+5. **Point DNS at it.** Add an **A record** for `api.<yourdomain>` → the
+   instance's public IP. The domain does *not* need to be on Cloudflare — any
+   registrar's DNS works, because Caddy terminates TLS itself.
+
+6. **HTTPS.** Edit the committed `Caddyfile`, replacing `api.yourdomain.com` with
+   your real subdomain, then:
+   ```bash
+   sudo cp Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
+   ```
+
+7. **Cut production over.** Set `VITE_COMPILE_API=https://api.<yourdomain>` in
+   `frontend/.env.production`, commit, push. **This is the last time that URL
+   ever needs to change** — which is the entire point of the exercise.
+
+8. **Retire the local path.** Stop the tunnel and `docker compose down`. Keep
+   Docker for local development; it is no longer serving production.
 
 ### Recovery runbook — when compiles break
 
