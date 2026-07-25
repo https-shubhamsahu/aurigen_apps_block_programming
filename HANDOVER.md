@@ -102,22 +102,46 @@ After editing `backend/.env`, always `docker compose up -d --force-recreate api`
    `compileProgram`. See §5 for what was fixed.
 6. **Enable Supabase leaked-password protection** — dashboard → Authentication →
    Sign In / Providers → Passwords. One toggle.
-7. **Repair WSL so Docker can start.** Docker Desktop currently fails at launch:
-   the WSL Store package is installed, but the System32 stub is orphaned —
-   `wsl.exe` is present while `C:\Windows\System32\lxss\wslclient.dll` is
-   missing, so every `wsl.exe` call dies with "The system cannot find the file
-   specified." Windows 11 **Home** has no Hyper-V backend to fall back to, so
-   WSL2 must be fixed for the backend to run at all. In an **elevated**
-   PowerShell:
+7. **Reinstall WSL so Docker can start.** Docker Desktop fails at launch —
+   it dies in its precondition check, before touching any container:
 
-   ```powershell
-   dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
-   dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
-   # reboot, then:
-   wsl --update
+   ```
+   engine linux/wsl failed to start: checking preconditions: checking WSL
+   version: executing wsl --version: ... The system cannot find the file specified.
    ```
 
-   Verify with `wsl --status` before starting Docker Desktop.
+   **Root cause: the WSL package payload was deleted from disk.** The Store
+   package `MicrosoftCorporationII.WindowsSubsystemForLinux_2.6.3.0` is still
+   *registered* (`Status: Ok`, manifest and signature intact), but its installed
+   files are gone — `C:\Program Files\WSL\` retains only `wsldeps.dll` and
+   `wslservice.exe`, and `C:\Windows\System32\lxss\wslclient.dll` is missing.
+   Running the package's own `wsl.exe` directly confirms it:
+
+   ```
+   Error code: Wsl/CallMsi/ERROR_FILE_NOT_FOUND
+   ```
+
+   Both directories were last written ~00:55–01:06 on 2026-07-25; Defender
+   reports no detections in that window, so the cause of the deletion is
+   unidentified — worth a glance before reinstalling in case something is
+   removing them repeatedly.
+
+   **Do NOT bother with `dism /enable-feature`.** It was tried and is a no-op
+   here: `Microsoft-Windows-Subsystem-Linux` and `VirtualMachinePlatform` are
+   both already `Enabled`. This is missing files, not a disabled feature — a
+   distinction that costs an hour if you get it wrong.
+
+   The fix is to reinstall the WSL package (Settings → Apps → Windows Subsystem
+   for Linux → Advanced options → **Repair**, or reinstall from the Microsoft
+   Store, or `Add-AppxPackage` the official MSIX from
+   [github.com/microsoft/WSL/releases](https://github.com/microsoft/WSL/releases)).
+   `winget` is not installed on this machine. Verify with `wsl --status` before
+   starting Docker Desktop.
+
+   Windows 11 **Home** has no Hyper-V backend, so WSL2 is Docker's only engine —
+   there is no way around this. The upside: `docker_data.vhdx` (78 GB, holding
+   the built images and the `artifacts` volume) is intact, so once WSL works
+   `docker compose up -d` restores everything with no image rebuild.
 
 ### Known deliberate trade-offs (not bugs — don't "fix" without cause)
 
