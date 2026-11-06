@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="452" viewBox="0 0 1200 452" role="img" aria-labelledby="title desc">
+  <title id="title">ESP32 flash map: four images in one write</title>
+  <desc id="desc">The worker stages four images and esptool-js writes them together: bootloader at 0x1000, partition table at 0x8000, boot_app0 at 0xE000 and your program at 0x10000. If you write only your program at 0x10000, a blank or erased board boot-loops.</desc>
+  <style>
+    .s { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans', Helvetica, Arial, sans-serif; }
+    .m { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', 'Noto Sans Mono', monospace; }
+    .b { font-weight: 700; }
+    .xb { font-weight: 800; }
+  </style>
+
+  <rect width="1200" height="452" rx="28" fill="#18181B"/>
+  <text x="56" y="74" class="s b" font-size="32" fill="#F4F4F5">ESP32: four images, one write</text>
+  <text x="56" y="110" class="s" font-size="20" fill="#A2A2AA">worker.js stages them, hooks/useWebSerial.js writes them with esptool-js</text>
+  <text x="216" y="179" class="m b" font-size="24" fill="#FFD400" text-anchor="end">0x1000</text>
+  <path d="M246,146 H256 L263,153 H281 L288,146 H734 Q740,146 740,152 V190 Q740,196 734,196 H288 L281,203 H263 L256,196 H246 Q240,196 240,190 V152 Q240,146 246,146 Z" fill="#3A3A40" stroke="#2A2A2F" stroke-width="1.5"/>
+  <text x="216" y="229" class="m b" font-size="24" fill="#FFD400" text-anchor="end">0x8000</text>
+  <path d="M246,196 H256 L263,203 H281 L288,196 H734 Q740,196 740,202 V240 Q740,246 734,246 H288 L281,253 H263 L256,246 H246 Q240,246 240,240 V202 Q240,196 246,196 Z" fill="#3A3A40" stroke="#2A2A2F" stroke-width="1.5"/>
+  <text x="216" y="279" class="m b" font-size="24" fill="#FFD400" text-anchor="end">0xE000</text>
+  <path d="M246,246 H256 L263,253 H281 L288,246 H734 Q740,246 740,252 V290 Q740,296 734,296 H288 L281,303 H263 L256,296 H246 Q240,296 240,290 V252 Q240,246 246,246 Z" fill="#3A3A40" stroke="#2A2A2F" stroke-width="1.5"/>
+  <text x="216" y="329" class="m b" font-size="24" fill="#FFD400" text-anchor="end">0x10000</text>
+  <path d="M246,296 H256 L263,303 H281 L288,296 H734 Q740,296 740,302 V340 Q740,346 734,346 H288 L281,353 H263 L256,346 H246 Q240,346 240,340 V302 Q240,296 246,296 Z" fill="#FFD400" stroke="#C9A800" stroke-width="1.5"/>
+  <text x="262" y="179" class="s b" font-size="21" fill="#F4F4F5">bootloader</text>
+  <text x="768" y="179" class="m" font-size="19" fill="#A2A2AA">job_N.ino.bootloader.bin</text>
+  <text x="262" y="229" class="s b" font-size="21" fill="#F4F4F5">partition table</text>
+  <text x="768" y="229" class="m" font-size="19" fill="#A2A2AA">job_N.ino.partitions.bin</text>
+  <text x="262" y="279" class="s b" font-size="21" fill="#F4F4F5">boot_app0</text>
+  <text x="768" y="279" class="m" font-size="19" fill="#A2A2AA">boot_app0.bin, from the core</text>
+  <text x="262" y="329" class="s b" font-size="21" fill="#17171A">app: the blocks you wrote</text>
+  <text x="768" y="329" class="m" font-size="19" fill="#A2A2AA">job_N.ino.bin</text>
+  <line x1="56" y1="376" x2="1144" y2="376" stroke="#3A3A40" stroke-width="2"/>
+  <text x="56" y="418" class="s" font-size="21" fill="#F4F4F5">If you write only the app at 0x10000, a blank or erased board boot-loops. All four go together.</text>
+</svg>

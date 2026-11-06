@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" role="img" aria-labelledby="title desc">
+  <title id="title">Aurigen: drag blocks in a browser tab, flash a real ESP32 over USB</title>
+  <desc id="desc">The Blink example three ways. Left: four Blockly blocks, set pin GPIO 16 to HIGH, wait 500 milliseconds, set pin GPIO 16 to LOW, wait 500 milliseconds. Middle: the Arduino C++ you get from them. Right: an ESP32 DevKit V1 with an LED on GPIO 16. The highlighted block, the matching C++ line and the LED state step through the program together.</desc>
+  <style>
+    .s { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans', Helvetica, Arial, sans-serif; }
+    .m { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', 'Noto Sans Mono', monospace; }
+    .b { font-weight: 700; }
+    .xb { font-weight: 800; }
+    .hl1, .hl2, .hl3, .hl4, .on, .off { animation-duration: 4s; animation-iteration-count: infinite; animation-timing-function: linear; }
+    .hl1 { animation-name: p1; }
+    .hl2 { opacity: 0; animation-name: p2; }
+    .hl3 { opacity: 0; animation-name: p3; }
+    .hl4 { opacity: 0; animation-name: p4; }
+    .on  { animation-name: ledon; }
+    .off { visibility: hidden; animation-name: ledoff; }
+    @keyframes p1 { 0%, 23% { opacity: 1; } 25%, 98% { opacity: 0; } 100% { opacity: 1; } }
+    @keyframes p2 { 0%, 23% { opacity: 0; } 25%, 48% { opacity: 1; } 50%, 100% { opacity: 0; } }
+    @keyframes p3 { 0%, 48% { opacity: 0; } 50%, 73% { opacity: 1; } 75%, 100% { opacity: 0; } }
+    @keyframes p4 { 0%, 73% { opacity: 0; } 75%, 98% { opacity: 1; } 100% { opacity: 0; } }
+    /* the LED switches instantly, like the pin; visibility also keeps the glow off a compositor layer */
+    @keyframes ledon { 0%, 49.9% { visibility: visible; } 50%, 99.9% { visibility: hidden; } 100% { visibility: visible; } }
+    @keyframes ledoff { 0%, 49.9% { visibility: hidden; } 50%, 99.9% { visibility: visible; } 100% { visibility: hidden; } }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; }
+    }
+  </style>
+
+  <defs>
+    <radialGradient id="glow"><stop offset="0" stop-color="#FFE45C" stop-opacity="0.95"/><stop offset="1" stop-color="#FFD400" stop-opacity="0"/></radialGradient>
+    <linearGradient id="shield" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D7DBE0"/><stop offset="0.5" stop-color="#AEB4BB"/><stop offset="1" stop-color="#878D95"/></linearGradient>
+  </defs>
+  <rect width="1200" height="560" rx="28" fill="#18181B"/>
+  <g id="title-block">
+    <text x="56" y="116" class="s xb" font-size="76" fill="#F4F4F5" letter-spacing="-1">Aurigen<tspan fill="#FFD400">.</tspan></text>
+    <text x="56" y="166" class="s b" font-size="30" fill="#F4F4F5">Drag blocks in a browser tab. Flash a real ESP32 over USB.</text>
+    <text x="56" y="206" class="m" font-size="21" fill="#A2A2AA">Blockly → Arduino C++ → arduino-cli in the cloud → Web Serial</text>
+    <text x="1144" y="72" class="m" font-size="19" fill="#A2A2AA" text-anchor="end">aurigen-apps.vercel.app</text>
+  </g>
+  <rect x="56" y="240" width="404" height="288" rx="18" fill="#101012"/>
+  <text x="76" y="274" class="s b" font-size="20" fill="#F4F4F5">Blocks</text>
+  <text x="440" y="274" class="m" font-size="18" fill="#A2A2AA" text-anchor="end">Blink example</text>
+  <rect x="480" y="240" width="320" height="288" rx="18" fill="#101012"/>
+  <text x="500" y="274" class="s b" font-size="20" fill="#F4F4F5">Generated C++</text>
+  <rect x="820" y="240" width="324" height="288" rx="18" fill="#101012"/>
+  <text x="840" y="274" class="s b" font-size="20" fill="#F4F4F5">ESP32 DevKit V1</text>
+  <path d="M465,375 l9,9 l-9,9" fill="none" stroke="#FFD400" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M805,375 l9,9 l-9,9" fill="none" stroke="#FFD400" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <g id="blocks">
+    <path d="M82,296 H92 L99,303 H117 L124,296 H448.69149999999996 Q454.69149999999996,296 454.69149999999996,302 V336 Q454.69149999999996,342 448.69149999999996,342 H124 L117,349 H99 L92,342 H82 Q76,342 76,336 V302 Q76,296 82,296 Z" fill="#E8590C" stroke="#B44509" stroke-width="1.5"/>
+    <text x="90" y="326.56" class="s b" font-size="21" fill="#FFFFFF">set pin</text>
+    <rect x="175.2745" y="303" width="127" height="32" rx="8" fill="#000000" fill-opacity="0.22"/>
+    <text x="185.2745" y="326.56" class="s" font-size="21" fill="#FFFFFF">GPIO 16</text>
+    <path d="M282,317.0 h10 l-5,6 z" fill="#FFFFFF"/>
+    <text x="312.2145" y="326.56" class="s b" font-size="21" fill="#FFFFFF">to</text>
+    <rect x="346.93149999999997" y="303" width="94" height="32" rx="8" fill="#000000" fill-opacity="0.22"/>
+    <text x="356.93149999999997" y="326.56" class="s" font-size="21" fill="#FFFFFF">HIGH</text>
+    <path d="M421,317.0 h10 l-5,6 z" fill="#FFFFFF"/>
+    <path d="M82,342 H92 L99,349 H117 L124,342 H363.8999 Q369.8999,342 369.8999,348 V382 Q369.8999,388 363.8999,388 H124 L117,395 H99 L92,388 H82 Q76,388 76,382 V348 Q76,342 82,342 Z" fill="#1E90FF" stroke="#1770C6" stroke-width="1.5"/>
+    <text x="90" y="372.56" class="s b" font-size="21" fill="#FFFFFF">wait</text>
+    <rect x="150.78220000000002" y="349" width="62" height="32" rx="8" fill="#FFFFFF"/>
+    <text x="161.78220000000002" y="372.56" class="s" font-size="21" fill="#17171A">500</text>
+    <text x="223.1022" y="372.56" class="s b" font-size="21" fill="#FFFFFF">milliseconds</text>
+    <path d="M82,388 H92 L99,395 H117 L124,388 H439.87149999999997 Q445.87149999999997,388 445.87149999999997,394 V428 Q445.87149999999997,434 439.87149999999997,434 H124 L117,441 H99 L92,434 H82 Q76,434 76,428 V394 Q76,388 82,388 Z" fill="#E8590C" stroke="#B44509" stroke-width="1.5"/>
+    <text x="90" y="418.56" class="s b" font-size="21" fill="#FFFFFF">set pin</text>
+    <rect x="175.2745" y="395" width="127" height="32" rx="8" fill="#000000" fill-opacity="0.22"/>
+    <text x="185.2745" y="418.56" class="s" font-size="21" fill="#FFFFFF">GPIO 16</text>
+    <path d="M282,409.0 h10 l-5,6 z" fill="#FFFFFF"/>
+    <text x="312.2145" y="418.56" class="s b" font-size="21" fill="#FFFFFF">to</text>
+    <rect x="346.93149999999997" y="395" width="85" height="32" rx="8" fill="#000000" fill-opacity="0.22"/>
+    <text x="356.93149999999997" y="418.56" class="s" font-size="21" fill="#FFFFFF">LOW</text>
+    <path d="M412,409.0 h10 l-5,6 z" fill="#FFFFFF"/>
+    <path d="M82,434 H92 L99,441 H117 L124,434 H363.8999 Q369.8999,434 369.8999,440 V474 Q369.8999,480 363.8999,480 H124 L117,487 H99 L92,480 H82 Q76,480 76,474 V440 Q76,434 82,434 Z" fill="#1E90FF" stroke="#1770C6" stroke-width="1.5"/>
+    <text x="90" y="464.56" class="s b" font-size="21" fill="#FFFFFF">wait</text>
+    <rect x="150.78220000000002" y="441" width="62" height="32" rx="8" fill="#FFFFFF"/>
+    <text x="161.78220000000002" y="464.56" class="s" font-size="21" fill="#17171A">500</text>
+    <text x="223.1022" y="464.56" class="s b" font-size="21" fill="#FFFFFF">milliseconds</text>
+    <path class="hl1" d="M82,296 H92 L99,303 H117 L124,296 H448.69149999999996 Q454.69149999999996,296 454.69149999999996,302 V336 Q454.69149999999996,342 448.69149999999996,342 H124 L117,349 H99 L92,342 H82 Q76,342 76,336 V302 Q76,296 82,296 Z" fill="none" stroke="#FFD400" stroke-width="4" stroke-linejoin="round"/>
+    <path class="hl2" d="M82,342 H92 L99,349 H117 L124,342 H363.8999 Q369.8999,342 369.8999,348 V382 Q369.8999,388 363.8999,388 H124 L117,395 H99 L92,388 H82 Q76,388 76,382 V348 Q76,342 82,342 Z" fill="none" stroke="#FFD400" stroke-width="4" stroke-linejoin="round"/>
+    <path class="hl3" d="M82,388 H92 L99,395 H117 L124,388 H439.87149999999997 Q445.87149999999997,388 445.87149999999997,394 V428 Q445.87149999999997,434 439.87149999999997,434 H124 L117,441 H99 L92,434 H82 Q76,434 76,428 V394 Q76,388 82,388 Z" fill="none" stroke="#FFD400" stroke-width="4" stroke-linejoin="round"/>
+    <path class="hl4" d="M82,434 H92 L99,441 H117 L124,434 H363.8999 Q369.8999,434 369.8999,440 V474 Q369.8999,480 363.8999,480 H124 L117,487 H99 L92,480 H82 Q76,480 76,474 V440 Q76,434 82,434 Z" fill="none" stroke="#FFD400" stroke-width="4" stroke-linejoin="round"/>
+  </g>
+  <g id="code">
+    <g class="hl1"><rect x="492" y="395" width="298" height="22" rx="4" fill="#FFD400" fill-opacity="0.16"/><rect x="492" y="395" width="4" height="22" fill="#FFD400"/></g>
+    <g class="hl2"><rect x="492" y="417" width="298" height="22" rx="4" fill="#FFD400" fill-opacity="0.16"/><rect x="492" y="417" width="4" height="22" fill="#FFD400"/></g>
+    <g class="hl3"><rect x="492" y="439" width="298" height="22" rx="4" fill="#FFD400" fill-opacity="0.16"/><rect x="492" y="439" width="4" height="22" fill="#FFD400"/></g>
+    <g class="hl4"><rect x="492" y="461" width="298" height="22" rx="4" fill="#FFD400" fill-opacity="0.16"/><rect x="492" y="461" width="4" height="22" fill="#FFD400"/></g>
+    <text x="504" y="302" class="m" font-size="19" fill="#A2A2AA">void<tspan fill="#F4F4F5"> setup() {</tspan></text>
+    <text x="526.8" y="324" class="m" font-size="19" fill="#F4F4F5">Serial.begin(115200);</text>
+    <text x="526.8" y="346" class="m" font-size="19" fill="#F4F4F5">pinMode(16, OUTPUT);</text>
+    <text x="504.0" y="368" class="m" font-size="19" fill="#F4F4F5">}</text>
+    <text x="504" y="390" class="m" font-size="19" fill="#A2A2AA">void<tspan fill="#F4F4F5"> loop() {</tspan></text>
+    <text x="526.8" y="412" class="m" font-size="19" fill="#F4F4F5">digitalWrite(16, HIGH);</text>
+    <text x="526.8" y="434" class="m" font-size="19" fill="#F4F4F5">delay(500);</text>
+    <text x="526.8" y="456" class="m" font-size="19" fill="#F4F4F5">digitalWrite(16, LOW);</text>
+    <text x="526.8" y="478" class="m" font-size="19" fill="#F4F4F5">delay(500);</text>
+    <text x="504.0" y="500" class="m" font-size="19" fill="#F4F4F5">}</text>
+  </g>
+  <g id="board">
+    <rect x="1004" y="290" width="116" height="222" rx="10" fill="#16161F" stroke="#000000" stroke-width="2"/>
+    <rect x="1028" y="300" width="68" height="74" rx="4" fill="url(#shield)" stroke="#6E747B"/>
+    <rect x="1050" y="440" width="24" height="24" rx="3" fill="#0C0C12" stroke="#2E2E3E"/>
+    <rect x="1044" y="496" width="36" height="22" rx="4" fill="url(#shield)" stroke="#6E747B"/>
+    <circle cx="1015" cy="302" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1109" cy="302" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1015" cy="316" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1109" cy="316" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1015" cy="330" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1109" cy="330" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1015" cy="344" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1109" cy="344" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1015" cy="358" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1109" cy="358" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1015" cy="372" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1109" cy="372" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1015" cy="386" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1109" cy="386" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1015" cy="400" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1109" cy="400" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1015" cy="414" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1109" cy="414" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1015" cy="428" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1109" cy="428" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1015" cy="442" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1109" cy="442" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1015" cy="456" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1109" cy="456" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1015" cy="470" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1109" cy="470" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1015" cy="484" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1109" cy="484" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1015" cy="498" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <circle cx="1109" cy="498" r="3.4" fill="#C7A24C" stroke="#8A6D2B"/>
+    <path d="M1015,372 H890 V392" fill="none" stroke="#6E747B" stroke-width="3" stroke-linejoin="round"/>
+    <rect x="930" y="365" width="36" height="14" rx="5" fill="#D8C49A" stroke="#9C8A62"/>
+    <rect x="938" y="365" width="4" height="14" fill="#8B4513"/>
+    <rect x="946" y="365" width="4" height="14" fill="#111111"/>
+    <rect x="954" y="365" width="4" height="14" fill="#8B4513"/>
+    <path d="M878,392 V430" fill="none" stroke="#6E747B" stroke-width="3"/>
+    <path d="M864,430 h28 M869,436 h18 M874,442 h8" stroke="#6E747B" stroke-width="3" stroke-linecap="round"/>
+    <path d="M869,386 V352 A15,15 0 0 1 899,352 V386 Z" fill="#4A431C" stroke="#2A2610" stroke-width="2"/>
+    <rect x="865" y="384" width="38" height="8" rx="2" fill="#4A431C" stroke="#2A2610" stroke-width="2"/>
+    <g class="on"><circle cx="884" cy="360" r="54" fill="url(#glow)"/><path d="M869,386 V352 A15,15 0 0 1 899,352 V386 Z" fill="#FFE45C" stroke="#C9A800" stroke-width="2"/><rect x="865" y="384" width="38" height="8" rx="2" fill="#FFE45C" stroke="#C9A800" stroke-width="2"/><circle cx="1015" cy="372" r="13" fill="url(#glow)"/></g>
+    <text x="964" y="356" class="m" font-size="19" fill="#F4F4F5" text-anchor="middle">GPIO 16</text>
+    <g class="on"><text x="884" y="486" class="m b" font-size="24" fill="#FFE45C" text-anchor="middle">HIGH</text></g>
+    <g class="off"><text x="884" y="486" class="m b" font-size="24" fill="#A2A2AA" text-anchor="middle">LOW</text></g>
+  </g>
+</svg>

@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="642" viewBox="0 0 1200 642" role="img" aria-labelledby="title desc">
+  <title id="title">Arduino Uno flashing: STK500v1 written in JavaScript</title>
+  <desc id="desc">The byte exchange useAvrFlash.js runs with the Uno's optiboot bootloader over Web Serial: reset with DTR and RTS, sync 30 20 answered by 14 10, read signature 75 20 answered by 14 1E 95 0F 10 (ATmega328P), enter programming mode 50 20, then for every page load the address 55 lo hi 20 and write 128 bytes with 64 00 80 46, and finally leave programming mode with 51 20 so the sketch starts.</desc>
+  <style>
+    .s { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans', Helvetica, Arial, sans-serif; }
+    .m { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', 'Noto Sans Mono', monospace; }
+    .b { font-weight: 700; }
+    .xb { font-weight: 800; }
+  </style>
+
+  <rect width="1200" height="642" rx="28" fill="#18181B"/>
+  <text x="56" y="74" class="s b" font-size="32" fill="#F4F4F5">Arduino Uno: STK500v1, written in JavaScript</text>
+  <text x="56" y="110" class="s" font-size="20" fill="#A2A2AA">hooks/useAvrFlash.js talks to optiboot directly. You don't need avrdude or a helper app.</text>
+  <text x="108" y="160" class="s" font-size="19" fill="#A2A2AA">Step</text>
+  <text x="500" y="160" class="s" font-size="19" fill="#A2A2AA">Browser sends</text>
+  <text x="860" y="160" class="s" font-size="19" fill="#A2A2AA">optiboot answers</text>
+  <rect x="40" y="190" width="1120" height="46" rx="10" fill="#1F1F23"/>
+  <circle cx="76" cy="213.0" r="15" fill="#3A3A40"/>
+  <text x="76" y="219.0" class="s b" font-size="18" fill="#F4F4F5" text-anchor="middle">1</text>
+  <text x="108" y="220.0" class="s" font-size="21" fill="#F4F4F5">Reset into the bootloader</text>
+  <text x="500" y="220.0" class="m b" font-size="21" fill="#FFD400">DTR/RTS pulse</text>
+  <path d="M802,213.0 h34 m-8,-7 l8,7 l-8,7" fill="none" stroke="#A2A2AA" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="860" y="220.0" class="m" font-size="21" fill="#F4F4F5">optiboot starts</text>
+  <circle cx="76" cy="263.0" r="15" fill="#3A3A40"/>
+  <text x="76" y="269.0" class="s b" font-size="18" fill="#F4F4F5" text-anchor="middle">2</text>
+  <text x="108" y="270.0" class="s" font-size="21" fill="#F4F4F5">Sync, up to 8 tries</text>
+  <text x="500" y="270.0" class="m b" font-size="21" fill="#FFD400">30 20</text>
+  <path d="M802,263.0 h34 m-8,-7 l8,7 l-8,7" fill="none" stroke="#A2A2AA" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="860" y="270.0" class="m" font-size="21" fill="#F4F4F5">14 10</text>
+  <rect x="40" y="290" width="1120" height="46" rx="10" fill="#1F1F23"/>
+  <circle cx="76" cy="313.0" r="15" fill="#3A3A40"/>
+  <text x="76" y="319.0" class="s b" font-size="18" fill="#F4F4F5" text-anchor="middle">3</text>
+  <text x="108" y="320.0" class="s" font-size="21" fill="#F4F4F5">Check the chip is an ATmega328P</text>
+  <text x="500" y="320.0" class="m b" font-size="21" fill="#FFD400">75 20</text>
+  <path d="M802,313.0 h34 m-8,-7 l8,7 l-8,7" fill="none" stroke="#A2A2AA" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="860" y="320.0" class="m" font-size="21" fill="#F4F4F5">14 1E 95 0F 10</text>
+  <circle cx="76" cy="363.0" r="15" fill="#3A3A40"/>
+  <text x="76" y="369.0" class="s b" font-size="18" fill="#F4F4F5" text-anchor="middle">4</text>
+  <text x="108" y="370.0" class="s" font-size="21" fill="#F4F4F5">Enter programming mode</text>
+  <text x="500" y="370.0" class="m b" font-size="21" fill="#FFD400">50 20</text>
+  <path d="M802,363.0 h34 m-8,-7 l8,7 l-8,7" fill="none" stroke="#A2A2AA" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="860" y="370.0" class="m" font-size="21" fill="#F4F4F5">14 10</text>
+  <rect x="40" y="390" width="1120" height="46" rx="10" fill="#1F1F23"/>
+  <circle cx="76" cy="413.0" r="15" fill="#3A3A40"/>
+  <text x="76" y="419.0" class="s b" font-size="18" fill="#F4F4F5" text-anchor="middle">5</text>
+  <text x="108" y="420.0" class="s" font-size="21" fill="#F4F4F5">Load the word address</text>
+  <text x="500" y="420.0" class="m b" font-size="21" fill="#FFD400">55 lo hi 20</text>
+  <path d="M802,413.0 h34 m-8,-7 l8,7 l-8,7" fill="none" stroke="#A2A2AA" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="860" y="420.0" class="m" font-size="21" fill="#F4F4F5">14 10</text>
+  <circle cx="76" cy="463.0" r="15" fill="#3A3A40"/>
+  <text x="76" y="469.0" class="s b" font-size="18" fill="#F4F4F5" text-anchor="middle">6</text>
+  <text x="108" y="470.0" class="s" font-size="21" fill="#F4F4F5">Write one 128-byte page</text>
+  <text x="500" y="470.0" class="m b" font-size="21" fill="#FFD400">64 00 80 46 [page] 20</text>
+  <path d="M802,463.0 h34 m-8,-7 l8,7 l-8,7" fill="none" stroke="#A2A2AA" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="860" y="470.0" class="m" font-size="21" fill="#F4F4F5">14 10</text>
+  <rect x="40" y="490" width="1120" height="46" rx="10" fill="#1F1F23"/>
+  <circle cx="76" cy="513.0" r="15" fill="#3A3A40"/>
+  <text x="76" y="519.0" class="s b" font-size="18" fill="#F4F4F5" text-anchor="middle">7</text>
+  <text x="108" y="520.0" class="s" font-size="21" fill="#F4F4F5">Leave programming mode</text>
+  <text x="500" y="520.0" class="m b" font-size="21" fill="#FFD400">51 20</text>
+  <path d="M802,513.0 h34 m-8,-7 l8,7 l-8,7" fill="none" stroke="#A2A2AA" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="860" y="520.0" class="m" font-size="21" fill="#F4F4F5">14 10</text>
+  <path d="M1040,394 h12 V486 h-12" fill="none" stroke="#FFD400" stroke-width="2.5"/>
+  <text x="1066" y="436.0" class="s" font-size="18" fill="#A2A2AA">repeat</text>
+  <text x="1066" y="458.0" class="s" font-size="18" fill="#A2A2AA">per page</text>
+  <line x1="56" y1="572" x2="1144" y2="572" stroke="#3A3A40" stroke-width="2"/>
+  <text x="56" y="610" class="s" font-size="21" fill="#F4F4F5">If the signature isn't 1E 95 0F, the upload stops before a single page is written.</text>
+</svg>
